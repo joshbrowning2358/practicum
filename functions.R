@@ -192,19 +192,11 @@ load_lag_times_cxx = cxxfunction(signature(prices="numeric"), plugin="RcppArmadi
   arma::mat price = Rcpp::as<arma::mat>(prices);
   int n = price.n_rows;
   arma::mat shift_price(n,20);
-  int secArray [20] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
+  int secArray [20] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
   for( int i=0; i<n; i++ ){
     for( int j=0; j<20; j++ ){
-      while(price(i,0) - price(sec1,0) > 1 && sec1 < n-1) sec1++;
-      while(price(i,0) - price(sec2,0) > 2 && sec2 < n-1) sec2++;
-      while(price(i,0) - price(sec3,0) > 3 && sec3 < n-1) sec3++;
-      while(price(i,0) - price(sec4,0) > 4 && sec4 < n-1) sec4++;
-      while(price(i,0) - price(sec5,0) > 5 && sec5 < n-1) sec5++;
-      shift_price(i,0) = price(sec1,1);
-      shift_price(i,1) = price(sec2,1);
-      shift_price(i,2) = price(sec3,1);
-      shift_price(i,3) = price(sec4,1);
-      shift_price(i,4) = price(sec5,1);
+      while(price(i,0) - price(secArray[j],0) > j && secArray[j] < n-1) secArray[j]++;
+      shift_price(i,j) = price(secArray[j],1);
     }
   }
   return Rcpp::wrap(shift_price);"
@@ -214,7 +206,7 @@ load_lag_times = function(prices){
   if(!is.matrix(prices)) stop("Input must be a matrix")
   if(ncol(prices)!=2) stop("Input has wrong number of columns.  Should be time, variable to lag.")
   lag = load_lag_times_cxx(prices)
-  for(i in 1:5) lag[prices[,1]<i,i] = NA
+  for(i in 1:20) lag[prices[,1]<i,i] = NA
   return(lag)
 }
 
