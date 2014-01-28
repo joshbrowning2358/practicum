@@ -22,6 +22,7 @@ price = price[,c(1:31,35:37)]
 #Data frame with transactions:
 orders = raw[raw$RestingSide!="",]
 orders = orders[,c(1,32:34)]
+write.csv( file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/orders.csv", orders )
 
 rm(raw); gc()
 
@@ -138,4 +139,4 @@ price$SecSinceOpen = price$Time %% (24*3600)
 price$SecSinceHour = price$Time %% 3600
 price$SecSinceMin = price$Time %% 60
 
-write.csv( price, file="price.csv", row.names=F)
+write.csv( file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/price.csv", price )
