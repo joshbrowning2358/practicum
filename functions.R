@@ -19,14 +19,14 @@ fit.nn = function( form, data, hidden, steps=1000, print=10, learning.rate.globa
   #Parse the form object to determine number of input neurons and relevant data
   if( !is.formula(form) ) stop("Formula incorrectly specified")
   form = as.character( form )
-  indCol = (1:ncol(d))[colnames(d)==form[2]]
+  indCol = (1:ncol(data))[colnames(data)==form[2]]
   depVars = strsplit(form[3],"+", fixed=T)
   #period matches everything:
   if( depVars=="." ){
-    depCols = (1:ncol(d))[-indCol]
+    depCols = (1:ncol(data))[-indCol]
   } else {
     depVars = sapply( depVars, function(x)gsub(" ","",x) )
-    depCols = (1:ncol(d))[colnames(d) %in% depVars]
+    depCols = (1:ncol(data))[colnames(data) %in% depVars]
   }
   
   #Fit the neural network
@@ -47,14 +47,14 @@ fit.glmnet = function(form, data, lambda=1*(0.9)^(0:100), family=c("gaussian","b
   #Parse the form object to determine number of input neurons and relevant data
   if( !is.formula(form) ) stop("Formula incorrectly specified")
   form = as.character( form )
-  indCol = (1:ncol(d))[colnames(d)==form[2]]
+  indCol = (1:ncol(data))[colnames(data)==form[2]]
   depVars = strsplit(form[3],"+", fixed=T)
   #period matches everything:
   if( depVars=="." ){
-    depCols = (1:ncol(d))[-indCol]
+    depCols = (1:ncol(data))[-indCol]
   } else {
     depVars = sapply( depVars, function(x)gsub(" ","",x) )
-    depCols = (1:ncol(d))[colnames(d) %in% depVars]
+    depCols = (1:ncol(data))[colnames(data) %in% depVars]
   }
   
   glmnet(x=as.matrix(data[,depCols]), y=as.matrix(data[,indCol]), lambda=lambda, family=family, alpha=alpha, nlambda=nlambda, maxit=maxit)
