@@ -4,9 +4,13 @@ library(gbm)
 library(AMORE)
 library(glmnet)
 library(pls)
+library(car)
 library(Rcpp)
 library(inline)
 library(RcppArmadillo)
+library(reshape)
+library(plyr)
+library(ggplot2)
 
 #form: specify the model formula, i.e. Y ~ X1 + X2 + X3.  Note that "." notation is supported.
 #data: a dataframe containing the data for which the model is desired.
