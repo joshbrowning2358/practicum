@@ -105,12 +105,12 @@ for(i in rmCols) price[,i] = NULL
 ###############################################################################
 
 lag = load_lag_times(as.matrix(price[,c("Time","MicroPriceAdj1Sec")]))
-colnames(lag) = paste0("MicroPriceAdj1Sec_Lag_",1:5,"s")
+colnames(lag) = paste0("MicroPriceAdj1Sec_Lag_",1:20,"s")
 price = cbind(price, lag)
 rm(lag)
 
 lag = load_lag_times(as.matrix(price[,c("Time","MicroPrice")]))
-colnames(lag) = paste0("MicroPrice_Lag_",1:5,"s")
+colnames(lag) = paste0("MicroPrice_Lag_",1:20,"s")
 price = cbind(price, lag)
 rm(lag)
 
