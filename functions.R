@@ -57,6 +57,12 @@ fit.glmnet = function(form, data, lambda=1*(0.9)^(0:100), family=c("gaussian","b
     depCols = (1:ncol(data))[colnames(data) %in% depVars]
   }
   
+  filter = apply( data[,c(depCols,indCol)], 1, function(x){all(!is.na(x))} )
+  if(any(!filter)){
+    warning("Missing values in data frame.  Removed for analysis")
+    data = data[filter,]
+  }
+  
   glmnet(x=as.matrix(data[,depCols]), y=as.matrix(data[,indCol]), lambda=lambda, family=family, alpha=alpha, nlambda=nlambda, maxit=maxit)
 }
 
