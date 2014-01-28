@@ -88,12 +88,12 @@ ggplot( coeffs[coeffs$variable<=4,], aes(x=lambda, y=value, color=as.factor(vari
 
 price$SecondRounded = floor( price$Time )
 price.agg = ddply(price, "SecondRounded", function(df){
-  data.frame( Variance=var(price$MicroPrice)
-    ,Spread=max(price$MicroPrice)-min(price$MicroPrice)
+  data.frame( Variance=var(df$MicroPrice)
+    ,Spread=max(df$MicroPrice)-min(df$MicroPrice)
     ,Trades=0
-    ,MaxQuantity=max(price$TotalBidQuantity + price$TotalOfferQuantity) )
+    ,MaxQuantity=max(df$TotalBidQuantity + df$TotalOfferQuantity, na.rm=T) )
 } )
-
-
-
-
+fit = kmeans( price.agg[,c("Spread","MaxQuantity")], centers=4 )
+price.agg$clust = fit$cluster
+ggplot( price.agg, aes(x=SecondRounded, y=Spread)) + geom_point(aes(color=as.factor(clust)), alpha=.5)
+#Try some different centers, see how they work.  Ideally, we should get different chunks of time, not "randomness".
