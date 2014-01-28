@@ -111,6 +111,9 @@ cvModel = function(d, cvGroup, indCol, model="neuralnet(Y ~ X1 + X2 + X3 + X4 + 
   model = gsub("data=[A-Za-z0-9_.]*", "data=train", model )
   if(!grepl( "data=", model )) model = sub( ")", ", data=train )", model )
   
+  #Store the models, if desirable
+  mods = list()
+  
   #Set up the model formula and rename the columns of d appropriately:
   #Holdout each cv-group in turn:
   for( i in sort(unique(cvGroup[cvGroup>0])) ){
@@ -123,8 +126,10 @@ cvModel = function(d, cvGroup, indCol, model="neuralnet(Y ~ X1 + X2 + X3 + X4 + 
     #Predict based on the model used:
     if( grepl("^neuralnet", model) )
       preds = compute(fit, predict)$net.result
-    if( grepl("^fit.nn", model) )
+    if( grepl("^fit.nn", model) ){
       preds = predict.nn(fit, newdata=predict)
+      mods[[length(mods)+1]] = fit
+    }
     if( grepl("^gbm", model) ){
       if(pred.cols==1) warning("Only generating one prediction for a model that allows many!")
       #Exponentially space out the trees for prediction, but round to nearest integer and remove duplicates:
@@ -136,8 +141,10 @@ cvModel = function(d, cvGroup, indCol, model="neuralnet(Y ~ X1 + X2 + X3 + X4 + 
     }
     if( grepl("^randomForest", model) )
       preds = data.frame(predict(fit, newdata=predict))
-    if( grepl("^([g]*lm|rpart)", model) )
+    if( grepl("^([g]*lm|rpart)", model) ){
       preds = data.frame(predict(fit, newdata=predict))
+      mods[[length(mods)+1]] = fit
+    }
     if( grepl("^pcr", model) ){
       #Prediction returns a 3-dimensional array (observations x prediction_type (always 1 here) x components).  Extract and return all components
       preds = apply(predict(fit, newdata=predict, type="response"), 3, identity)
@@ -168,7 +175,8 @@ cvModel = function(d, cvGroup, indCol, model="neuralnet(Y ~ X1 + X2 + X3 + X4 + 
     ensem[test.index,] = ensem[test.index,] + preds[rownames(preds) %in% test.index,]/(length(unique(cvGroup))-1)
     print(paste0("Model ",i,"/",length(unique(cvGroup[cvGroup>0]))," has finished"))
   }
-  return(ensem)
+  if(length(mods)==0) return(ensem)
+  return(list(ensemble=ensem, models=mods))
 }
 
 make_raw = function(){
