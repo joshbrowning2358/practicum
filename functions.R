@@ -143,7 +143,7 @@ cvModel = function(d, cvGroup, indCol, model="neuralnet(Y ~ X1 + X2 + X3 + X4 + 
       preds = data.frame(predict(fit, newdata=predict))
     if( grepl("^([g]*lm|rpart)", model) ){
       preds = data.frame(predict(fit, newdata=predict))
-      mods[[length(mods)+1]] = fit
+      mods[[length(mods)+1]] = fit$coeff
     }
     if( grepl("^pcr", model) ){
       #Prediction returns a 3-dimensional array (observations x prediction_type (always 1 here) x components).  Extract and return all components
