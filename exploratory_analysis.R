@@ -2,6 +2,7 @@ source_github("https://raw2.github.com/rockclimber112358/practicum/master/functi
 
 price = read.csv( file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/price.csv")
 price = read.csv( file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/price_sampled.csv")
+price = read.csv( file="/home/josh/Ubuntu One/Statistics Practicum/price.csv" )
 price$X = NULL
 #Not sure why this is happening, but fix this issue:
 #price[,39] = as.numeric( as.character( price[,39] ) )
@@ -19,7 +20,7 @@ qplot( price$MicroPrice-price$MicroPrice60SecAhead, binwidth=.01, origin=-.405 )
 #60 sec variability based on time of day
 ggplot( price[filter,], aes(x=Time, y=MicroPrice60SecAhead-MicroPrice) ) + geom_point()
 ggplot( price[filter,], aes(x=Time, y=MicroPrice1SecAhead-MicroPrice) ) + geom_point()
-#Prices 1 second ahead are roughly constant if InsideQuantity is low.  For 60s, "Total" Quantity is also important, and trends aren't as clear:
+#Prices 1 second ahead are roughly constant if InsideQuantity is low. For 60s, "Total" Quantity is also important, and trends aren't as clear:
 #Also, current spread greatly affects 1s price changes but has a much smaller effect on 60s price changes (negative?!)
 ggplot( price[filter,], aes(x=InsideBidQuantity + InsideOfferQuantity, y=abs(MicroPrice1SecAhead-MicroPrice)) ) + #geom_point(alpha=.1) +
   geom_smooth()
@@ -51,9 +52,10 @@ fit = glm( form, data=price )
 summary(fit)
 library(car)
 vif(fit)
-#So, most lags are significant but variance is very inflated.  But, even though significant, all terms but 1s lag are tiny.  20s lag is interesting though...
+#So, most lags are significant but variance is very inflated. But, even though significant, all terms but 1s lag are tiny. 20s lag is interesting though...
 library(glmnet)
 fit = fit.glmnet( form, data=price )
+plot(fit)
 
 form = as.formula( paste("MicroPrice1SecAhead ~ MicroPrice + ", paste0("MicroPrice_Lag_",1:20,"s",collapse="+") ) )
 fit = glm( form, data=price )
@@ -68,7 +70,7 @@ form = as.formula( paste("PriceDiff1SecAhead ~ ", paste0("MicroPrice_Lag_",1:20,
 fit = glm( form, data=price )
 summary(fit)
 vif(fit)
-#So, most lags are significant but variance is very inflated.  But, even though significant, all terms but 1s lag are tiny.  20s lag is interesting though...
+#So, most lags are significant but variance is very inflated. But, even though significant, all terms but 1s lag are tiny. 20s lag is interesting though...
 fit = fit.glmnet( form, data=price )
 plot(fit)
 coeffs = data.frame( t( as.matrix(fit$beta) ) )
@@ -93,7 +95,10 @@ price.agg = ddply(price, "SecondRounded", function(df){
     ,Trades=0
     ,MaxQuantity=max(df$TotalBidQuantity + df$TotalOfferQuantity, na.rm=T) )
 } )
-fit = kmeans( price.agg[,c("Spread","MaxQuantity")], centers=4 )
+fit = kmeans( price.agg[,c("Spread","MaxQuantity")], centers=2 )
 price.agg$clust = fit$cluster
 ggplot( price.agg, aes(x=SecondRounded, y=Spread)) + geom_point(aes(color=as.factor(clust)), alpha=.5)
-#Try some different centers, see how they work.  Ideally, we should get different chunks of time, not "randomness".
+ggplot( price.agg, aes(x=SecondRounded, fill=as.factor(clust))) + geom_bar(position="fill", binwidth=60*10) +
+  scale_x_continuous(breaks=0:30*5000) + theme(axis.text.x=element_text(angle=90, vjust=0.5))
+27000/(60*60); 50000/(60*60)
+#Try some different centers, see how they work. Ideally, we should get different chunks of time, not "randomness".
