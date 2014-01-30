@@ -243,8 +243,8 @@ load_lag_trades_cxx = cxxfunction(signature(prices="numeric", orders="numeric", 
   arma::mat output(n,5);
   int iLag(0), iCurr(0);
   for( int i=0; i<n; i++){
-    while( price(i,0) > order(iLag,0) + lag && iLag <= m) iLag++; //iterate iLag until it's within Lag seconds of price's time
-    while( price(i,0) >= order(iCurr,0)  && iCurr <= m ) iCurr++;
+    while( price(i,0) > order(iLag,0) + lag && iLag < m-1) iLag++; //iterate iLag until it's within Lag seconds of price's time
+    while( price(i,0) >= order(iCurr,0)  && iCurr < m-1 ) iCurr++;
     output(i,0) = iCurr-iLag;
     output(i,1) = 0;
     output(i,2) = 0;
@@ -261,7 +261,7 @@ load_lag_trades_cxx = cxxfunction(signature(prices="numeric", orders="numeric", 
 "
 )
 
-load_lag_trades = function( price, orders, lag=1 ){
+load_lag_trades = function( price, orders, lag=60 ){
   price_mat = as.matrix( price$Time )
   orders_agg = ddply( orders, c("Time", "RestingSide", "TradePrice"), function(df)sum(df$TradeQuantity) )
   colnames(orders_agg)[4] = "Units"
@@ -270,8 +270,8 @@ load_lag_trades = function( price, orders, lag=1 ){
   output = data.frame(output)
   output[,3] = output[,3]/output[,2]
   colnames(output) = paste0(c("Trades_Lag_", "Units_Lag_", "Proportion_Sell_Lag_", "Highest_Trade_Lag_", "Lowest_Trade_Lag_"), lag, "s" )
-  output$Highest_Trade_Lag_1s[output$Highest_Trade_Lag_1s==0] = NA
-  output$Lowest_Trade_Lag_1s[output$Lowest_Trade_Lag_1s==999] = NA
+  output[output[,4]==0,4] = NA
+  output[output[,5]==999,5] = NA
   return(output)
 }
 
