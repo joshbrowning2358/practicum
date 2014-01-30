@@ -102,3 +102,15 @@ ggplot( price.agg, aes(x=SecondRounded, fill=as.factor(clust))) + geom_bar(posit
   scale_x_continuous(breaks=0:30*5000) + theme(axis.text.x=element_text(angle=90, vjust=0.5))
 27000/(60*60); 50000/(60*60)
 #Try some different centers, see how they work. Ideally, we should get different chunks of time, not "randomness".
+
+
+#############################################################
+# Order Volume
+#############################################################
+
+orders = orders[orders$RestingSide!="null",]
+qplot( orders$Time[2:nrow(orders)]-orders$Time[1:(nrow(orders)-1)] ) + scale_x_continuous(limit=c(0,50))
+qplot( orders$Time[2:nrow(orders)]-orders$Time[1:(nrow(orders)-1)] ) + scale_x_continuous(limit=c(0,2))
+qplot( orders$Time[2:nrow(orders)]-orders$Time[1:(nrow(orders)-1)] ) + scale_x_continuous(limit=c(0,.1))
+qplot( orders$Time[2:nrow(orders)]-orders$Time[1:(nrow(orders)-1)] ) + scale_x_continuous(limit=c(0,.001))
+head( orders, 20 )
