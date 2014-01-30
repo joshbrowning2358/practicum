@@ -228,17 +228,52 @@ load_lag_times = function(prices){
   return(lag)
 }
 
-#Number of trades, # of Buy Trades, Highest and lowest price cleared
-roll = cxxfunction(signature(prices="numeric", orders="numeric", lags="int"), plugin="RcppArmadillo", body="
+# prices has 1 column: time
+# orders has 4 columns: time, 0=BUY/1=SELL, price, units
+# output has 5 columns: # # of trades in last Lag seconds, # of units traded, proportion of sell units in last Lag seconds, Highest/Lowest cleared price in last Lag seconds (2)
+# Variable i keeps track of row of price
+# Variable iLag keeps track of Lag seconds back row of orders
+# Variable iCurr keeps track of first row of orders that has a time greater than price(i,0)
+load_lag_trades_cxx = cxxfunction(signature(prices="numeric", orders="numeric", lags="numeric"), plugin="RcppArmadillo", body="
   arma::mat price = Rcpp::as<arma::mat>(prices);
   arma::mat order = Rcpp::as<arma::mat>(orders);
-  int lag = Rcpp::as<int>(lags);
   int n = price.n_rows;
   int m = order.n_rows;
-  arma::mat roll_vals(n,20);
-  return(Rcpp::wrap(lag));
-  "
+  double lag = Rcpp::as<double>(lags);
+  arma::mat output(n,5);
+  int iLag(0), iCurr(0);
+  for( int i=0; i<n; i++){
+    while( price(i,0) > order(iLag,0) + lag && iLag <= m) iLag++; //iterate iLag until it's within Lag seconds of price's time
+    while( price(i,0) >= order(iCurr,0)  && iCurr <= m ) iCurr++;
+    output(i,0) = iCurr-iLag;
+    output(i,1) = 0;
+    output(i,2) = 0;
+    output(i,3) = 0;
+    output(i,4) = 999; //Will overwrite, just need a large number
+    for( int j=iLag; j<iCurr; j++){
+      output(i,1) = output(i,1) + order(j,3);
+      output(i,2) = output(i,2) + order(j,3)*order(j,1);
+      if( order(j,2) > output(i,3) ) output(i,3) = order(j,2);
+      if( order(j,2) < output(i,4) ) output(i,4) = order(j,2);
+    }
+  }
+  return(wrap(output));
+"
 )
+
+load_lag_trades = function( price, orders, lag=1 ){
+  price_mat = as.matrix( price$Time )
+  orders_agg = ddply( orders, c("Time", "RestingSide", "TradePrice"), function(df)sum(df$TradeQuantity) )
+  colnames(orders_agg)[4] = "Units"
+  orders_agg$RestingSide = as.numeric( orders_agg$RestingSide=="SELL")
+  output = load_lag_trades_cxx(prices=matrix(price$Time), orders=as.matrix(orders_agg), lags=lag )
+  output = data.frame(output)
+  output[,3] = output[,3]/output[,2]
+  colnames(output) = paste0(c("Trades_Lag_", "Units_Lag_", "Proportion_Sell_Lag_", "Highest_Trade_Lag_", "Lowest_Trade_Lag_"), lag, "s" )
+  output$Highest_Trade_Lag_1s[output$Highest_Trade_Lag_1s==0] = NA
+  output$Lowest_Trade_Lag_1s[output$Lowest_Trade_Lag_1s==999] = NA
+  return(output)
+}
 
 #Sample run of neural network code:
   #d = data.frame( matrix(rnorm(5000),ncol=5) ); colnames(d) = paste0("X",1:5); d$Y = as.matrix(d)%*%runif(5) + rnorm(100)
