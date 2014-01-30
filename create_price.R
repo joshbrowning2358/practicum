@@ -64,7 +64,7 @@ price$MicroPriceAdj1Sec = price$MicroPriceAdj1Sec + price$MicroPrice
 #fit.new = cvModel(price, cvGroup, model=paste("glm(",form,")"), indCol=33 )
 ##Convert fit.new to appropriate scale:
 #fit.new = fit.new + price$MicroPrice
-##Wahoo!  This idea beats the persistence model and a regression model against current microprice!
+##Wahoo! This idea beats the persistence model and a regression model against current microprice!
 #sum( (price$MicroPrice - price$MicroPrice1SecAhead)[cvGroup==-1]^2 )
 #sum( (fit.bench - price$MicroPrice1SecAhead)[cvGroup==-1,]^2 )
 #sum( (fit.new - price$MicroPrice1SecAhead)[cvGroup==-1,]^2, na.rm=T )
@@ -75,7 +75,7 @@ price$MicroPriceAdj1Sec = price$MicroPriceAdj1Sec + price$MicroPrice
 #fit.new = cvModel(price, cvGroup, model=paste("glm(",form,")"), indCol=33 )
 ##Convert fit.new to appropriate scale:
 #fit.new = fit.new + price$MicroPrice
-##These models do terrible...  Weird...
+##These models do terrible... Weird...
 #sum( (price$MicroPrice - price$MicroPrice1SecAhead)[cvGroup==-1]^2 )
 #sum( (fit.bench - price$MicroPrice60SecAhead)[cvGroup==-1,]^2 )
 #sum( (fit.new - price$MicroPrice60SecAhead)[cvGroup==-1,]^2, na.rm=T )
@@ -138,4 +138,12 @@ price$SecSinceOpen = price$Time %% (24*3600)
 price$SecSinceHour = price$Time %% 3600
 price$SecSinceMin = price$Time %% 60
 
+###############################################################################
+# Trade History
+###############################################################################
+
+trade_hist = load_lag_trades( price, orders, lag=60 )
+price = cbind( price, trade_hist )
+
+write.csv( price, file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/price.csv" )
 write.csv( file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/price.csv", price )
