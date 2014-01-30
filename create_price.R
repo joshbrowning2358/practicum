@@ -145,5 +145,5 @@ price$SecSinceMin = price$Time %% 60
 trade_hist = load_lag_trades( price, orders, lag=60 )
 price = cbind( price, trade_hist )
 
-write.csv( price, file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/price.csv" )
-write.csv( file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/price.csv", price )
+write.csv( price, file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/price.csv", row.names=F )
+write.csv( file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/price.csv", price, row.names=F )
