@@ -1,5 +1,4 @@
-source("C:/Users/jbrowning/Ubuntu One/Statistics Practicum/functions.R")
-source("/home/josh/Ubuntu One/Statistics Practicum/functions.R")
+source_github("https://raw2.github.com/rockclimber112358/practicum/master/functions.R")
 
 options(digits.secs=6)
 
