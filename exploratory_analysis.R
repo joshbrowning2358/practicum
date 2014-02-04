@@ -122,15 +122,24 @@ ggsave("Cluster_Time_3Groups.png",
 fit = kmeans( price.agg[,-1], centers=2 )
 price.agg$clust = fit$cluster
 ggplot( price.agg, aes(x=MinuteRounded, y=Spread)) + geom_point(aes(color=as.factor(clust)), alpha=.5)
-ggsave("Cluster_Time_3Groups.png",
+ggsave("Cluster_Time_2Groups.png",
   ggplot( price.agg, aes(x=MinuteRounded, fill=as.factor(clust))) + geom_bar(position="fill", binwidth=60*10) +
     scale_x_continuous(breaks=0:10*15000) + theme(axis.text.x=element_text(angle=90, vjust=0.5)) +
     labs(x="Seconds after start of data", y="Proportion", fill="Cluster Number") +
     scale_y_continuous(label=percent)
   ,width=8, height=8, dpi=400 )
-27000/(60*60); 50000/(60*60)
 #Try some different centers, see how they work. Ideally, we should get different chunks of time, not "randomness".
-
+library(caTools)
+price.agg$clust_ma = runmean(price.agg$clust, 25)
+ggplot( price.agg, aes(y=clust_ma, x=MinuteRounded) ) + geom_line()
+min(price.agg$MinuteRounded[price.agg$clust_ma>1.5])
+max(price.agg$MinuteRounded[price.agg$clust_ma>1.5 & price.agg$MinuteRounded<86400])
+min(price.agg$MinuteRounded[price.agg$clust_ma>1.5 & price.agg$MinuteRounded>86400])-86400
+max(price.agg$MinuteRounded[price.agg$clust_ma>1.5])-86400
+((23700+24660)/2)/(60*60)
+((47940+47340)/2)/(60*60)
+price$Model.No = as.numeric( price$SecSinceOpen > 6.75*60*60 & price$SecSinceOpen < 13.5*60*60 )
+#Roughly 6:45 to 1:30
 
 #############################################################
 # Order Volume
@@ -152,39 +161,3 @@ ggsave("Time_Between_Orders_RestingSide_Proportion.png",
     scale_x_continuous(limit=c(0,50)) + labs(x="Time between trades") +
     scale_y_continuous("Percent of Total", label=percent)
   ,width=8, height=8, dpi=400 )
-
-#############################################################
-# Examining Predictiveness of Variables
-#############################################################
-
-perf.filter = price$PriceDiff1SecAhead!=0
-perf = sum( (price$PriceDiff1SecAhead/100)[perf.filter]^2/
-  sum(perf.filter))
-mods = data.frame( Type="Mean", Indep="Price", Residuals=perf )
-mods$Type = as.character( mods$Type )
-mods$Indep = as.character( mods$Indep )
-
-add.row = function(fit, mod.name, mod.type="Price"){
-  perf = sum( (fit$residuals)[!is.na(fit$residuals) & perf.filter]^2/
-    sum(perf.filter & !is.na(fit$residuals)))
-  if( mod.type=="Differenced" ) perf=perf/100^2
-  mods <<- rbind( mods, c("MicroPrice Only", mod.type, perf) )
-}
-
-fit = glm( MicroPrice1SecAhead ~ MicroPrice, data=price )
-add.row( fit, "MicroPrice Only" )
-
-fit = glm( PriceDiff1SecAhead ~ MicroPrice, data=price )
-add.row( fit, "MicroPrice Only", "Differenced" )
-
-fit = glm( MicroPrice1SecAhead ~ MicroPriceAdj1Sec, data=price )
-add.row( fit, "Adj. MicroPrice")
-
-fit = glm( PriceDiff1SecAhead ~ MicroPriceAdj1Sec, data=price )
-add.row( fit, "Adj. MicroPrice", "Differenced")
-
-fit = glm( MicroPrice1SecAhead ~ MicroPrice + MicroPrice_Lag_1s + MicroPrice_Lag_2s + MicroPrice_Lag_3s , data=price )
-add.row( fit, "MicroPrice + 3 Lags" )
-
-fit = glm( PriceDiff1SecAhead ~ MicroPrice + MicroPrice_Lag_1s + MicroPrice_Lag_2s + MicroPrice_Lag_3s , data=price )
-add.row( fit, "MicroPrice + 3 Lags", "Differenced" )
