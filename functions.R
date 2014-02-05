@@ -122,12 +122,18 @@ cvModel = function(d, cvGroup, indCol, model="neuralnet(Y ~ X1 + X2 + X3 + X4 + 
     train = d[!cvGroup %in% c(-1,i),]
     predict = d[cvGroup %in% c(-1,i),-indCol]
 
-    #Pass the arguments to cvNnet into the neuralnet fit:
+    #Evaluate the model
     fit = eval( parse( text=model) )
     
     #Predict based on the model used:
-    if( grepl("^neuralnet", model) )
-      preds = compute(fit, predict)$net.result
+    if( grepl("^neuralnet", model) ){
+      #neuralnet prediction requires a dataframe with only the used variables in it:
+      depCols = gsub( ",.*", "", gsub(".*~", "", model ) )
+      depCols = strsplit(depCols, "+", fixed=T)[[1]]
+      depCols = sapply(depCols, function(x){gsub(" ","",x)} )
+      predict.temp = predict[,colnames(predict) %in% depCols]
+      preds = compute(fit, predict.temp)$net.result
+    }
     if( grepl("^fit.nn", model) ){
       preds = predict.nn(fit, newdata=predict)
       mods[[length(mods)+1]] = fit
