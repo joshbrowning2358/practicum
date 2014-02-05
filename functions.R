@@ -111,7 +111,8 @@ cvModel = function(d, cvGroup, indCol, model="neuralnet(Y ~ X1 + X2 + X3 + X4 + 
   rownames(d) = 1:nrow(d)
   
   model = gsub("data=[A-Za-z0-9_.]*", "data=train", model )
-  if(!grepl( "data=", model )) model = sub( ")", ", data=train )", model )
+  model = gsub(" ","",model)
+  if(!grepl( "data=", model )) model = paste0(substr(model,1,nchar(model)-1),", data=train )")
   
   #Store the models, if desirable
   mods = list()
