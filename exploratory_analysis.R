@@ -148,12 +148,12 @@ price$Model.No = as.numeric( price$SecSinceOpen > 6.75*60*60 & price$SecSinceOpe
 orders = orders[orders$RestingSide!="null",]
 ggsave("Time_Between_Orders_Histogram.png", 
   qplot( orders$Time[2:nrow(orders)]-orders$Time[1:(nrow(orders)-1)] ) + scale_x_continuous(limit=c(0,50)) +
-    labs(x="Time between trades") + scale_y_continuous("Count", label=comma)
+    labs(x="Time between trades (s)") + scale_y_continuous("Count", label=comma)
   ,width=8, height=8, dpi=400 )
 orders$DeltaT = c(NA,orders$Time[2:nrow(orders)]-orders$Time[1:(nrow(orders)-1)])
 ggsave("Time_Between_Orders_RestingSide_Histogram.png", 
   ggplot( orders, aes(x=DeltaT, fill=RestingSide) ) + geom_bar() +
-    scale_x_continuous(limit=c(0,50)) + labs(x="Time between trades") +
+    scale_x_continuous(limit=c(0,50)) + labs(x="Time between trades (s)") +
     scale_y_continuous("Count", label=comma)
   ,width=8, height=8, dpi=400 )
 ggsave("Time_Between_Orders_RestingSide_Proportion.png", 
