@@ -22,6 +22,7 @@ price = price[,c(1:31,35:37)]
 orders = raw[raw$RestingSide!="",]
 orders = orders[,c(1,32:34)]
 write.csv( file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/orders.csv", orders )
+write.csv( orders, file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/orders.csv", row.names=F )
 
 rm(raw); gc()
 
