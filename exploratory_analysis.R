@@ -158,6 +158,6 @@ ggsave("Time_Between_Orders_RestingSide_Histogram.png",
   ,width=8, height=8, dpi=400 )
 ggsave("Time_Between_Orders_RestingSide_Proportion.png", 
   ggplot( orders, aes(x=DeltaT, fill=RestingSide) ) + geom_bar(position="fill") +
-    scale_x_continuous(limit=c(0,50)) + labs(x="Time between trades") +
+    scale_x_continuous(limit=c(0,50)) + labs(x="Time between trades (s)") +
     scale_y_continuous("Percent of Total", label=percent)
   ,width=8, height=8, dpi=400 )
