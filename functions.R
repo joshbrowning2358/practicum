@@ -12,6 +12,7 @@ library(reshape)
 library(plyr)
 library(ggplot2)
 library(scales)
+library(neuralnet)
 
 #form: specify the model formula, i.e. Y ~ X1 + X2 + X3.  Note that "." notation is supported.
 #data: a dataframe containing the data for which the model is desired.
