@@ -14,6 +14,12 @@ library(ggplot2)
 library(scales)
 library(neuralnet)
 
+eval_preds = function( preds, act ){
+  SS = sum( (preds-act)[!is.na(preds) & act!=0]^2 )
+  cnt = sum( !is.na(preds) & act!=0 )
+  return(SS/cnt)
+}
+
 #form: specify the model formula, i.e. Y ~ X1 + X2 + X3.  Note that "." notation is supported.
 #data: a dataframe containing the data for which the model is desired.
 #hidden: the number of hidden neurons in the network.  The package only supports one hidden layer.
@@ -148,7 +154,7 @@ cvModel = function(d, cvGroup, indCol, model="neuralnet(Y ~ X1 + X2 + X3 + X4 + 
       #Remove extra columns in ensem, if applicable
       ensem = ensem[,1:ncol(preds)]
     }
-    if( grepl("^randomForest", model) )
+    if( grepl("(^randomForest|^nnet)", model) )
       preds = data.frame(predict(fit, newdata=predict))
     if( grepl("^([g]*lm|rpart)", model) ){
       preds = data.frame(predict(fit, newdata=predict))
