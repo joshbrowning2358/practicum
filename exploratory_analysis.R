@@ -4,7 +4,6 @@ setwd("/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practi
 price = read.csv( file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/price.csv")
 price = read.csv( file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/price_sampled.csv")
 price = read.csv( file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/price.csv" )
-price$X = NULL
 #Not sure why this is happening, but fix this issue:
 #price[,39] = as.numeric( as.character( price[,39] ) )
 
@@ -12,31 +11,31 @@ price$X = NULL
 filter = sample( 1:nrow(price), size=10000 )
 ggsave("MicroPrice_MicroPrice1SecAhead_Correlated.png",
   ggplot(price[filter,], aes(x=MicroPrice, y=MicroPrice1SecAhead) ) + geom_point(alpha=.1) + geom_smooth()
-  ,width=8, height=8, dpi=400 )
+  ,width=4, height=4, dpi=400 )
 ggsave("MicroPrice_MicroPrice60SecAhead_Correlated.png",
   ggplot(price[filter,], aes(x=MicroPrice, y=MicroPrice60SecAhead) ) + geom_point(alpha=.1) + geom_smooth()
-  ,width=8, height=8, dpi=400 )
+  ,width=4, height=4, dpi=400 )
 
 table( round(price$MicroPrice-price$MicroPrice1SecAhead, 2) )
 ggsave("Price_Difference_1sec_Histogram.png",
   qplot( price$MicroPrice-price$MicroPrice1SecAhead, binwidth=.01, origin=-.155 ) +
     labs(x="Price Difference (1 sec ahead)", y="Count") + scale_y_continuous(label=comma)
-  ,width=8, height=8, dpi=400 )
+  ,width=4, height=4, dpi=400 )
 table( round(price$MicroPrice-price$MicroPrice60SecAhead, 2) )
 ggsave("Price_Difference_60sec_Histogram.png",
   qplot( price$MicroPrice-price$MicroPrice60SecAhead, binwidth=.01, origin=-.405 ) +
     labs(x="Price Difference (60 sec ahead)", y="Count") + scale_y_continuous(label=comma)
-  ,width=8, height=8, dpi=400 )
+  ,width=4, height=4, dpi=400 )
 
 #Variability based on time of day
 ggsave("Price_Difference_60sec_Variability_Over_time.png",
   ggplot( price[filter,], aes(x=as.POSIXct(Time, origin=as.Date("2013-11-04","%Y-%m-%d"), tz="GMT"), y=MicroPrice60SecAhead-MicroPrice) ) +
     geom_point(alpha=.2) + labs(x="", y="Price Difference (1 sec ahead)")
-  ,width=8, height=8, dpi=400 )
+  ,width=4, height=4, dpi=400 )
 ggsave("Price_Difference_60sec_Variability_Over_time.png",
   ggplot( price[filter,], aes(x=as.POSIXct(Time, origin=as.Date("2013-11-04","%Y-%m-%d"), tz="GMT"), y=MicroPrice1SecAhead-MicroPrice) ) +
     geom_point(alpha=.2) + labs(x="", y="Price Difference (1 sec ahead)")
-  ,width=8, height=8, dpi=400 )
+  ,width=4, height=4, dpi=400 )
 
 corr.coeff = function(d, indCol, depCols){
   d2 = d[sample(1:nrow(d), replace=T, size=nrow(d)),]
@@ -74,7 +73,7 @@ coeffs$variable = as.numeric(as.character(gsub("(MicroPrice_Lag_|s)","",coeffs$v
 ggsave("glmnet_coefficients_future_vs_lags.png",
   ggplot( coeffs[coeffs$variable<=5,], aes(x=lambda, y=value, color=as.factor(variable), group=variable) ) + geom_line() +
     scale_x_log10(breaks=10^(-4:0)) + labs(color="Lag Number")
-  ,width=8, height=8, dpi=400 )
+  ,width=4, height=4, dpi=400 )
 
 form = as.formula( paste("PriceDiff1SecAhead ~ ", paste0("MicroPrice_Lag_",1:20,"s",collapse="+") ) )
 fit = glm( form, data=price )
@@ -92,7 +91,7 @@ ggplot( coeffs, aes(x=lambda, y=value, color=variable, group=variable) ) + geom_
 ggsave("glmnet_coefficients_diff_vs_lags.png",
   ggplot( coeffs[coeffs$variable<=5,], aes(x=lambda, y=value, color=as.factor(variable), group=variable) ) + geom_line() +
     scale_x_log10(breaks=10^(-4:0)) + labs(color="Lag Number")
-  ,width=8, height=8, dpi=400 )
+  ,width=4, height=4, dpi=400 )
 
 #############################################################
 # Volatility Plots
@@ -116,7 +115,7 @@ ggsave("Cluster_Time_3Groups.png",
     scale_x_continuous(breaks=0:10*15000) + theme(axis.text.x=element_text(angle=90, vjust=0.5)) +
     labs(x="Seconds after start of data", y="Proportion", fill="Cluster Number") +
     scale_y_continuous(label=percent)
-  ,width=8, height=8, dpi=400 )
+  ,width=4, height=4, dpi=400 )
 #3 centers doesn't seem to make much sense...
 
 fit = kmeans( price.agg[,-1], centers=2 )
@@ -127,7 +126,7 @@ ggsave("Cluster_Time_2Groups.png",
     scale_x_continuous(breaks=0:10*15000) + theme(axis.text.x=element_text(angle=90, vjust=0.5)) +
     labs(x="Seconds after start of data", y="Proportion", fill="Cluster Number") +
     scale_y_continuous(label=percent)
-  ,width=8, height=8, dpi=400 )
+  ,width=4, height=4, dpi=400 )
 #Try some different centers, see how they work. Ideally, we should get different chunks of time, not "randomness".
 library(caTools)
 price.agg$clust_ma = runmean(price.agg$clust, 25)
@@ -149,15 +148,15 @@ orders = orders[orders$RestingSide!="null",]
 ggsave("Time_Between_Orders_Histogram.png", 
   qplot( orders$Time[2:nrow(orders)]-orders$Time[1:(nrow(orders)-1)] ) + scale_x_continuous(limit=c(0,50)) +
     labs(x="Time between trades (s)") + scale_y_continuous("Count", label=comma)
-  ,width=8, height=8, dpi=400 )
+  ,width=4, height=4, dpi=400 )
 orders$DeltaT = c(NA,orders$Time[2:nrow(orders)]-orders$Time[1:(nrow(orders)-1)])
 ggsave("Time_Between_Orders_RestingSide_Histogram.png", 
   ggplot( orders, aes(x=DeltaT, fill=RestingSide) ) + geom_bar() +
     scale_x_continuous(limit=c(0,50)) + labs(x="Time between trades (s)") +
     scale_y_continuous("Count", label=comma)
-  ,width=8, height=8, dpi=400 )
+  ,width=4, height=4, dpi=400 )
 ggsave("Time_Between_Orders_RestingSide_Proportion.png", 
   ggplot( orders, aes(x=DeltaT, fill=RestingSide) ) + geom_bar(position="fill") +
     scale_x_continuous(limit=c(0,50)) + labs(x="Time between trades (s)") +
     scale_y_continuous("Percent of Total", label=percent)
-  ,width=8, height=8, dpi=400 )
+  ,width=4, height=4, dpi=400 )
