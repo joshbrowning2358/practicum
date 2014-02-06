@@ -10,10 +10,12 @@ price = read.csv( file="/home/josh/Documents/Professional Files/Mines/MATH 598- 
 #Price doesn't change much in one second:
 filter = sample( 1:nrow(price), size=10000 )
 ggsave("MicroPrice_MicroPrice1SecAhead_Correlated.png",
-  ggplot(price[filter,], aes(x=MicroPrice, y=MicroPrice1SecAhead) ) + geom_point(alpha=.1) + geom_smooth()
+  ggplot(price[filter,], aes(x=MicroPrice, y=MicroPrice1SecAhead) ) + geom_point(alpha=.1) + geom_smooth() +
+    labs(y="MicroPrice 60 sec ahead")
   ,width=4, height=4, dpi=400 )
 ggsave("MicroPrice_MicroPrice60SecAhead_Correlated.png",
-  ggplot(price[filter,], aes(x=MicroPrice, y=MicroPrice60SecAhead) ) + geom_point(alpha=.1) + geom_smooth()
+  ggplot(price[filter,], aes(x=MicroPrice, y=MicroPrice60SecAhead) ) + geom_point(alpha=.1) + geom_smooth() +
+    labs(y="MicroPrice 60 sec ahead")
   ,width=4, height=4, dpi=400 )
 
 table( round(price$MicroPrice-price$MicroPrice1SecAhead, 2) )
@@ -113,7 +115,7 @@ ggplot( price.agg, aes(x=MinuteRounded, y=Spread)) + geom_point(aes(color=as.fac
 ggsave("Cluster_Time_3Groups.png",
   ggplot( price.agg, aes(x=MinuteRounded, fill=as.factor(clust))) + geom_bar(position="fill", binwidth=60*10) +
     scale_x_continuous(breaks=0:10*15000) + theme(axis.text.x=element_text(angle=90, vjust=0.5)) +
-    labs(x="Seconds after start of data", y="Proportion", fill="Cluster Number") +
+    labs(x="Seconds after start of data", y="Proportion", fill="Cluster") +
     scale_y_continuous(label=percent)
   ,width=4, height=4, dpi=400 )
 #3 centers doesn't seem to make much sense...
@@ -124,7 +126,7 @@ ggplot( price.agg, aes(x=MinuteRounded, y=Spread)) + geom_point(aes(color=as.fac
 ggsave("Cluster_Time_2Groups.png",
   ggplot( price.agg, aes(x=MinuteRounded, fill=as.factor(clust))) + geom_bar(position="fill", binwidth=60*10) +
     scale_x_continuous(breaks=0:10*15000) + theme(axis.text.x=element_text(angle=90, vjust=0.5)) +
-    labs(x="Seconds after start of data", y="Proportion", fill="Cluster Number") +
+    labs(x="Seconds after start of data", y="Proportion", fill="Cluster") +
     scale_y_continuous(label=percent)
   ,width=4, height=4, dpi=400 )
 #Try some different centers, see how they work. Ideally, we should get different chunks of time, not "randomness".
