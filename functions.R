@@ -221,27 +221,44 @@ make_raw = function(){
 #6 indicators:
 #i: Current row of matrix.  Take this microprice and impute it ahead 1s, 2s, 3s, 4s, 5s
 #secj, j=1:5: Index of row corresponding to j seconds ahead of ith row.  Increments up as i increments
-load_lag_times_cxx = cxxfunction(signature(prices="numeric"), plugin="RcppArmadillo", body="
+load_lag_price_cxx = cxxfunction(signature(prices="numeric", lags="numeric"), plugin="RcppArmadillo", body="
   arma::mat price = Rcpp::as<arma::mat>(prices);
+  arma::mat lag = Rcpp::as<arma::mat>(lags);
   int n = price.n_rows;
-  arma::mat shift_price(n,20);
-  int secArray [20] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
+  int m = lag.n_rows;
+  arma::mat shift_price(n,m);
+  int secArray [m];
+  for( int i=0; i<m; i++ ) secArray[i] = 1;
   for( int i=0; i<n; i++ ){
-    for( int j=0; j<20; j++ ){
-      while(price(i,0) - price(secArray[j],0) > j && secArray[j] < n-1) secArray[j]++;
+    for( int j=0; j<m; j++ ){
+      while(price(i,0) - price(secArray[j],0) > lag[j] && secArray[j] < n-1) secArray[j]++;
       shift_price(i,j) = price(secArray[j],1);
     }
   }
   return Rcpp::wrap(shift_price);"
 )
 
-load_lag_times = function(prices){
+load_lag_price_cxx( as.matrix(price[1:100,c("Time","MicroPrice")]), matrix(1:5) )
+
+load_lag_price = function(prices, lags){
+  if(is.data.frame(prices)) prices = as.matrix(prices)
   if(!is.matrix(prices)) stop("Input must be a matrix")
   if(ncol(prices)!=2) stop("Input has wrong number of columns.  Should be time, variable to lag.")
-  lag = load_lag_times_cxx(prices)
-  for(i in 1:20) lag[prices[,1]<i,i] = NA
-  return(lag)
+  if(is.numeric(lags)) lags = matrix(lags)
+  if(!is.matrix(lags)) stop("Lags must be a list or a matrix!")
+  if(ncol(lags)!=1) stop("Lags must have only one column!")
+  out = load_lag_price_cxx(prices, lags)
+  for(i in 1:length(lags)) out[prices[,1]<lags[i],i] = NA
+  if( is.null(colnames(prices)[2]) ) colnames(prices)[2] = "Var"
+  colnames(out) = paste0("Lag_",lags,"_",colnames(prices)[2])
+  return(out)
 }
+
+#Check code works:
+#lags = load_lag_price( price[1:10000,c("Time","MicroPrice")], lags=1:10 )
+#lags = data.frame( price[1:10000,c("Time","MicroPrice")], lags)
+#toPlot = melt(lags, id.var="Time")
+#ggplot(toPlot[toPlot$Time<=120,], aes(x=Time, y=value, color=variable, group=variable) ) + geom_line()
 
 # prices has 1 column: time
 # orders has 4 columns: time, 0=BUY/1=SELL, price, units
