@@ -58,8 +58,8 @@ form = paste("PriceDiff1SecAhead ~", paste0("BidHigh",1:5,"Cnt", collapse=" + ")
 #Coefficients are very consistent across CV groups (except for intercept).  Thus, it should be safe to use the model without worrying about it skewing cross-validation results.
 
 fit = glm( as.formula(form), data=price)
-price$MicroPriceAdj1Sec = predict(fit)
-price$MicroPriceAdj1Sec = price$MicroPriceAdj1Sec + price$MicroPrice
+price$MicroPriceAdj = predict(fit)
+price$MicroPriceAdj = price$MicroPriceAdj + price$MicroPrice
 #Note: could also do this for 60 seconds ahead, but you get almost identical coefficients
 
 ###############################################################################
@@ -82,7 +82,7 @@ for(i in rmCols) price[,i] = NULL
 # Add Lagged Time Variables and estimated derivatives
 ###############################################################################
 
-lag = load_lag_price(price[,c("Time","MicroPriceAdj1Sec")], lags=c(1:30,45,60,120,300,600))
+lag = load_lag_price(price[,c("Time","MicroPriceAdj")], lags=c(1:30,45,60,120,300,600))
 price = cbind(price, lag)
 
 lag = load_lag_price(price[,c("Time","MicroPrice")], lags=c(1:30,45,60,120,300,600))
@@ -96,7 +96,7 @@ rm(lag)
 #deriv_mat[,2] = c(15/4, -77/6, 107/6, -13, 61/12, -5/6)
 #deriv_mat[,3] = c(-17/4, 71/4, -59/2, 49/2, -41/4, 7/4)
 #deriv_mat[,4] = c(3, -14, 26, -24, 11, -2)
-#derivs = as.matrix(price[,c("MicroPriceAdj1Sec",paste0("MicroPriceAdj1Sec_Lag_",1:5,"s"))]) %*% deriv_mat
+#derivs = as.matrix(price[,c("MicroPriceAdj",paste0("MicroPriceAdj_Lag_",1:5,"s"))]) %*% deriv_mat
 #colnames(derivs) = paste0("DerivAdj",1:4)
 #price = cbind(price, derivs)
 #rm(derivs)
