@@ -123,5 +123,7 @@ for( lag in c(1:30,45,60,120,300,600) ){
   price = cbind( price, trade_hist )
 }
 
+price$Model.No = as.numeric( price$Time %% (24*60*60) > 6.75*60*60 & price$Time %% (24*60*60) < 13.5*60*60 )
+
 write.csv( price, file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/price.csv", row.names=F )
 write.csv( file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/price.csv", price, row.names=F )
