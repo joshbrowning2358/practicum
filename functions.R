@@ -238,8 +238,6 @@ load_lag_price_cxx = cxxfunction(signature(prices="numeric", lags="numeric"), pl
   return Rcpp::wrap(shift_price);"
 )
 
-load_lag_price_cxx( as.matrix(price[1:100,c("Time","MicroPrice")]), matrix(1:5) )
-
 load_lag_price = function(prices, lags){
   if(is.data.frame(prices)) prices = as.matrix(prices)
   if(!is.matrix(prices)) stop("Input must be a matrix")
