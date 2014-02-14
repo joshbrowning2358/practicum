@@ -8,6 +8,8 @@ options(digits.secs=6)
 
 raw = read.csv(file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/Data/20131104.CLZ3.log")
 raw = rbind(raw, read.csv(file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/Data/20131105.CLZ3.log") )
+raw = rbind(raw, read.csv(file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/Data/20131107.CLZ3.log") )
+raw = rbind(raw, read.csv(file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/Data/20131108.CLZ3.log") )
 raw = read.csv(file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/20131104.CLZ3.log")
 raw = rbind(raw, read.csv(file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/20131105.CLZ3.log") )
 raw$Time = as.POSIXct(strptime(x=raw$Time, format="%Y%m%d %H:%M:%OS"))
@@ -57,8 +59,8 @@ form = paste("PriceDiff1SecAhead ~", paste0("BidHigh",1:5,"Cnt", collapse=" + ")
 #  geom_boxplot()
 #Coefficients are very consistent across CV groups (except for intercept).  Thus, it should be safe to use the model without worrying about it skewing cross-validation results.
 
-fit = glm( as.formula(form), data=price)
-price$MicroPriceAdj = predict(fit)
+fit = glm( as.formula(form), data=price[price$Time<=2*24*60*60,])
+price$MicroPriceAdj = predict(fit, newdata=price)
 price$MicroPriceAdj = price$MicroPriceAdj + price$MicroPrice
 #Note: could also do this for 60 seconds ahead, but you get almost identical coefficients
 
