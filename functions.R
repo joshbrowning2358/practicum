@@ -13,6 +13,7 @@ library(plyr)
 library(ggplot2)
 library(scales)
 library(neuralnet)
+library(biglm)
 
 eval_preds = function( preds, act ){
   SS = sum( (preds-act)[!is.na(preds) & act!=0]^2 )
@@ -193,6 +194,32 @@ cvModel = function(d, cvGroup, indCol, model="neuralnet(Y ~ X1 + X2 + X3 + X4 + 
   if(length(mods)==0) return(ensem)
   return(list(ensemble=ensem, models=mods))
 }
+
+create.read.f = function(filename,chunk.rows=100){
+  f = function(reset=TRUE){
+    if(reset){
+      skip.rows<<-0
+      return(NULL)
+    }
+    d = read.csv(filename, nrow=chunk.rows, skip=skip.rows)
+    skip.rows <<- skip.rows + chunk.rows
+    colnames(d) = paste0("X",1:10)
+    if( nrow(d)==0 ) return(NULL)
+    return(d)
+  }
+  return(f)
+}
+
+#d = matrix(rnorm(10000),nrow=1000)
+#d = data.frame(d)
+#write.csv(d, file="temp.csv", row.names=F)
+#f = create.read.f("temp.csv", chunk.rows=50)
+#f(T)
+#for( i in 1:21 ) print( nrow(f(F)) )
+#fit.big = bigglm( X1 ~ X2 + X3, data=read.d )
+#fit = glm(X1 ~ X2 + X3, data=d)
+#summary(fit.big)
+#summary(fit)
 
 make_raw = function(){
   options(digits.secs=6)
