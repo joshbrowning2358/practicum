@@ -15,9 +15,28 @@ library(scales)
 library(neuralnet)
 library(biglm)
 
-eval_preds = function( preds, act ){
+eval_preds = function( preds, act, time=NULL ){
   SS = sum( (preds-act)[!is.na(preds) & act!=0]^2 )
   cnt = sum( !is.na(preds) & act!=0 )
+  print(paste("MSE of target is:", round(sum(act^2)/sum(act!=0),6)))
+  print(paste("MSE of predictions is:", round(SS/cnt,6)))
+
+  #If time column is provided, generate plot of performance by 15 minute intervals
+  if( !is.null(time) ){
+    d = data.frame( preds, act, time = floor(time/(15*60))*15*60 )
+    d.agg = ddply( d, "time", function(df){
+      SS = sum( (df$preds-df$act)[!is.na(df$preds) & df$act!=0]^2 )
+      cnt = sum( !is.na(df$preds) & df$act!=0 )
+      data.frame(Base.MSE=sum(df$act^2)/sum(df$act!=0)
+        ,Model.MSE = SS/cnt )
+    } )
+    d.agg$Improvement = d.agg$Model.MSE / d.agg$Base.MSE
+    toPlot = melt(d.agg, id.vars="time", measure.vars=c("Improvement","Base.MSE"))
+    baseline = data.frame(time=c(0,max(d.agg$time)), value=1, variable="Improvement")
+    print( ggplot(toPlot, aes(x=time, y=value) ) + geom_line() + facet_wrap(~variable, scales="free") +
+      geom_line(data=baseline, color="red", linetype=2) )
+  }
+  
   return(SS/cnt)
 }
 
