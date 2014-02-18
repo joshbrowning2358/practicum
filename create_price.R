@@ -30,6 +30,7 @@ price = price[,c(1:31,35:37)]
 #Data frame with transactions:
 orders = raw[raw$RestingSide!="",]
 orders = orders[,c(1,32:34)]
+orders = orders[orders$RestingSide!="null",]
 write.csv( file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/orders.csv", orders )
 write.csv( orders, file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/orders.csv", row.names=F )
 
@@ -95,9 +96,17 @@ write.csv(price,"price_base_cols.csv",row.names=F)
 # Add Lagged Time Variables and estimated derivatives
 ###############################################################################
 
-lag = load_lag_price(price[,c("Time","MicroPriceAdj")], lags=c(1:60*.01,7:60*.1,7:60,2:60*60))
-price = cbind(price, lag)
-write.csv(lag,"price_lag_price_cols.csv",row.names=F)
+lag = load_lag_price(price[,c("Time","MicroPriceAdj")], lags=1:60*.01)
+write.csv(lag,"price_lag_hund_cols.csv",row.names=F)
+
+lag = load_lag_price(price[,c("Time","MicroPriceAdj")], lags=7:60*.1)
+write.csv(lag,"price_lag_tenth_cols.csv",row.names=F)
+
+lag = load_lag_price(price[,c("Time","MicroPriceAdj")], lags=7:60)
+write.csv(lag,"price_lag_seconds_cols.csv",row.names=F)
+
+lag = load_lag_price(price[,c("Time","MicroPriceAdj")], lags=2:60*60)
+write.csv(lag,"price_lag_minutes_cols.csv",row.names=F)
 
 #lag = load_lag_price(price[,c("Time","MicroPrice")], lags=c(1:30,45,60,120,300,600))
 #price = cbind(price, lag)
@@ -132,12 +141,33 @@ rm(lag)
 # Trade History
 ###############################################################################
 
-trades = load_lag_trades(price, orders, lag=.5)
-for( lag in c(1:60,2:60*60) ){
-  trade_hist = load_lag_trades( price, orders, lag=lag )
+trades = load_lag_trades(price, orders, lag=1)[,3:4]
+for( lag in c(3:30) ){
+  trade_hist = load_lag_trades( price, orders, lag=lag )[,3:4]
   trades = cbind( trades, trade_hist )
 }
-write.csv(trades,"price_trade_cols.csv",row.names=F)
+write.csv(trades,"price_trade_sec_1_30.csv",row.names=F)
+
+trades = load_lag_trades(price, orders, lag=31)[,3:4]
+for( lag in c(32:60) ){
+  trade_hist = load_lag_trades( price, orders, lag=lag )[,3:4]
+  trades = cbind( trades, trade_hist )
+}
+write.csv(trades,"price_trade_sec_31_60.csv",row.names=F)
+
+trades = load_lag_trades(price, orders, lag=2*60)[,3:4]
+for( lag in c(3:30*60) ){
+  trade_hist = load_lag_trades( price, orders, lag=lag )[,3:4]
+  trades = cbind( trades, trade_hist )
+}
+write.csv(trades,"price_trade_min_2_30.csv",row.names=F)
+
+trades = load_lag_trades(price, orders, lag=31*60)[,3:4]
+for( lag in c(32:60*60) ){
+  trade_hist = load_lag_trades( price, orders, lag=lag )[,3:4]
+  trades = cbind( trades, trade_hist )
+}
+write.csv(trades,"price_trade_min_31_60.csv",row.names=F)
 
 write.csv( price, file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/price.csv", row.names=F )
 write.csv( file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/price.csv", price, row.names=F )
