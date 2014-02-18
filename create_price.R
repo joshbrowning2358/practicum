@@ -41,7 +41,7 @@ price$PriceDiff1SecAhead = (price$MicroPrice1SecAhead - price$MicroPrice)*100
 #price$PriceDiff60SecAhead = price$MicroPrice60SecAhead - price$MicroPrice
 #price$PriceRatio60SecAhead = price$MicroPrice60SecAhead / price$MicroPrice - 1
 set.seed(123)
-price$cvGroup = sample(c(rep(1:5,each=148125),rep(6:10,each=148124)))
+price$cvGroup = c(sample(c(rep(1:5,each=148125),rep(6:10,each=148124))),rep(-1,1237233))
 price$Model.No = as.numeric( price$Time %% (24*60*60) > 6.75*60*60 & price$Time %% (24*60*60) < 13.5*60*60 )
 
 ###############################################################################
@@ -75,6 +75,23 @@ price$MicroPriceAdj = predict(fit, newdata=price)
 price$MicroPriceAdj = price$MicroPriceAdj + price$MicroPrice
 #Note: could also do this for 60 seconds ahead, but you get almost identical coefficients
 
+price$LogBookImb = log( (price$BidQuantity1 + price$BidQuantity2 + price$BidQuantity3 + price$BidQuantity4 + price$BidQuantity5)
+  / (price$OfferQuantity1 + price$OfferQuantity2 + price$OfferQuantity3 + price$OfferQuantity4 + price$OfferQuantity5) )
+price$LogBookImbInside = log( price$BidQuantity1 / price$OfferQuantity1 )
+price$BidQuantityAdj = as.numeric( cbind(price$BidHigh1Cnt, price$BidHigh2Cnt, price$BidHigh3Cnt, price$BidHigh4Cnt, price$BidHigh5Cnt) %*% 2^(0:-4) )
+price$OfferQuantityAdj = as.numeric( cbind(price$OfferLow1Cnt, price$OfferLow2Cnt, price$OfferLow3Cnt, price$OfferLow4Cnt, price$OfferLow5Cnt) %*% 2^(0:-4) )
+price$MicroPriceAdjExp = (price$BidPrice1*(price$OfferQuantityAdj)+price$OfferPrice1*(price$BidQuantityAdj) ) /
+  (price$OfferQuantityAdj + price$BidQuantityAdj)
+
+ggplot(price[sample(1:nrow(price),size=100000),], aes(x=LogBookImb, y=PriceDiff1SecAhead) ) +
+  geom_point(alpha=.1) + geom_smooth()
+ggplot(price[sample(1:nrow(price),size=100000),], aes(x=LogBookImbInside, y=PriceDiff1SecAhead) ) +
+  geom_point(alpha=.1) + geom_smooth()
+ggplot(price[sample(1:nrow(price),size=100000),], aes(x=MicroPriceAdjExp, y=PriceDiff1SecAhead) ) +
+  geom_point(alpha=.1) + geom_smooth()
+ggplot(price[sample(1:nrow(price),size=100000),], aes(x=MicroPriceAdjExp, y=MicroPrice) ) +
+  geom_point(alpha=.1) + geom_smooth()
+
 ###############################################################################
 # Add volume columns
 ###############################################################################
@@ -88,7 +105,7 @@ price$MicroPriceAdj = price$MicroPriceAdj + price$MicroPrice
 #Remove unneccesary columns:
 rmCols = c(paste0("BidQuantity",1:5), paste0("BidNumberOfOrders",1:5), paste0("BidPrice",1:5)
           ,paste0("OfferQuantity",1:5), paste0("OfferNumberOfOrders",1:5), paste0("OfferPrice",1:5)
-          ,paste0("BidHigh",1:5,"Cnt"), paste0("OfferLow",1:5,"Cnt"))
+          ,paste0("BidHigh",1:5,"Cnt"), paste0("OfferLow",1:5,"Cnt"), "BidQuantityAdj", "OfferQuantityAdj")
 for(i in rmCols) price[,i] = NULL
 write.csv(price,"price_base_cols.csv",row.names=F)
 
@@ -107,6 +124,50 @@ write.csv(lag,"price_lag_seconds_cols.csv",row.names=F)
 
 lag = load_lag_price(price[,c("Time","MicroPriceAdj")], lags=2:60*60)
 write.csv(lag,"price_lag_minutes_cols.csv",row.names=F)
+
+########### MicroPriceAdjExp
+
+lag = load_lag_price(price[,c("Time","MicroPriceAdjExp")], lags=1:60*.01)
+write.csv(lag,"price_exp_lag_hund_cols.csv",row.names=F)
+
+lag = load_lag_price(price[,c("Time","MicroPriceAdjExp")], lags=7:60*.1)
+write.csv(lag,"price_exp_lag_tenth_cols.csv",row.names=F)
+
+lag = load_lag_price(price[,c("Time","MicroPriceAdjExp")], lags=7:60)
+write.csv(lag,"price_exp_lag_seconds_cols.csv",row.names=F)
+
+lag = load_lag_price(price[,c("Time","MicroPriceAdjExp")], lags=2:60*60)
+write.csv(lag,"price_exp_lag_minutes_cols.csv",row.names=F)
+
+########### LogBookImb
+
+lag = load_lag_price(price[,c("Time","LogBookImb")], lags=1:60*.01)
+write.csv(lag,"log_book_imb_lag_hund_cols.csv",row.names=F)
+
+lag = load_lag_price(price[,c("Time","LogBookImb")], lags=7:60*.1)
+write.csv(lag,"log_book_imb_lag_tenth_cols.csv",row.names=F)
+
+lag = load_lag_price(price[,c("Time","LogBookImb")], lags=7:60)
+write.csv(lag,"log_book_imb_lag_seconds_cols.csv",row.names=F)
+
+lag = load_lag_price(price[,c("Time","LogBookImb")], lags=2:60*60)
+write.csv(lag,"log_book_imb_lag_minutes_cols.csv",row.names=F)
+
+########### LogBookImbInside
+
+lag = load_lag_price(price[,c("Time","LogBookImbInside")], lags=1:60*.01)
+write.csv(lag,"log_book_imb_inside_lag_hund_cols.csv",row.names=F)
+
+lag = load_lag_price(price[,c("Time","LogBookImbInside")], lags=7:60*.1)
+write.csv(lag,"log_book_imb_inside_lag_tenth_cols.csv",row.names=F)
+
+lag = load_lag_price(price[,c("Time","LogBookImbInside")], lags=7:60)
+write.csv(lag,"log_book_imb_inside_lag_seconds_cols.csv",row.names=F)
+
+lag = load_lag_price(price[,c("Time","LogBookImbInside")], lags=2:60*60)
+write.csv(lag,"log_book_imb_inside_minutes_cols.csv",row.names=F)
+
+
 
 #lag = load_lag_price(price[,c("Time","MicroPrice")], lags=c(1:30,45,60,120,300,600))
 #price = cbind(price, lag)
