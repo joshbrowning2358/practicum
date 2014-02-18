@@ -1,4 +1,5 @@
 source_github("https://raw2.github.com/rockclimber112358/practicum/master/functions.R")
+source("/u/st/fl/jbrownin/MATH598_Statistics_Practicum/R_Code/functions.R")
 
 options(digits.secs=6)
 
@@ -10,8 +11,14 @@ raw = read.csv(file="/home/josh/Documents/Professional Files/Mines/MATH 598- Sta
 raw = rbind(raw, read.csv(file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/Data/20131105.CLZ3.log") )
 raw = rbind(raw, read.csv(file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/Data/20131107.CLZ3.log") )
 raw = rbind(raw, read.csv(file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/Data/20131108.CLZ3.log") )
-raw = read.csv(file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/20131104.CLZ3.log")
-raw = rbind(raw, read.csv(file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/20131105.CLZ3.log") )
+
+raw = read.csv(file="20131104.CLZ3.log")
+raw = rbind(raw, read.csv(file="20131105.CLZ3.log") )
+raw = rbind(raw, read.csv(file="20131107.CLZ3.log") )
+raw = rbind(raw, read.csv(file="20131108.CLZ3.log") )
+
+#raw = read.csv(file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/20131104.CLZ3.log")
+#raw = rbind(raw, read.csv(file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/20131105.CLZ3.log") )
 raw$Time = as.POSIXct(strptime(x=raw$Time, format="%Y%m%d %H:%M:%OS"))
 #Convert time to a numeric vector (i.e. seconds after 2013-11-04 00:00:00):
 raw$Time = as.numeric( raw$Time - as.POSIXct("2013-11-04") )
@@ -32,6 +39,9 @@ price$PriceDiff1SecAhead = (price$MicroPrice1SecAhead - price$MicroPrice)*100
 #price$PriceRatio1SecAhead = price$MicroPrice1SecAhead / price$MicroPrice - 1
 #price$PriceDiff60SecAhead = price$MicroPrice60SecAhead - price$MicroPrice
 #price$PriceRatio60SecAhead = price$MicroPrice60SecAhead / price$MicroPrice - 1
+set.seed(123)
+price$cvGroup = sample(c(rep(1:5,each=148125),rep(6:10,each=148124)))
+price$Model.No = as.numeric( price$Time %% (24*60*60) > 6.75*60*60 & price$Time %% (24*60*60) < 13.5*60*60 )
 
 ###############################################################################
 # Define adjusted microprice(s)
@@ -79,16 +89,18 @@ rmCols = c(paste0("BidQuantity",1:5), paste0("BidNumberOfOrders",1:5), paste0("B
           ,paste0("OfferQuantity",1:5), paste0("OfferNumberOfOrders",1:5), paste0("OfferPrice",1:5)
           ,paste0("BidHigh",1:5,"Cnt"), paste0("OfferLow",1:5,"Cnt"))
 for(i in rmCols) price[,i] = NULL
+write.csv(price,"price_base_cols.csv",row.names=F)
 
 ###############################################################################
 # Add Lagged Time Variables and estimated derivatives
 ###############################################################################
 
-lag = load_lag_price(price[,c("Time","MicroPriceAdj")], lags=c(1:30,45,60,120,300,600))
+lag = load_lag_price(price[,c("Time","MicroPriceAdj")], lags=c(1:60*.01,7:60*.1,7:60,2:60*60))
 price = cbind(price, lag)
+write.csv(lag,"price_lag_price_cols.csv",row.names=F)
 
-lag = load_lag_price(price[,c("Time","MicroPrice")], lags=c(1:30,45,60,120,300,600))
-price = cbind(price, lag)
+#lag = load_lag_price(price[,c("Time","MicroPrice")], lags=c(1:30,45,60,120,300,600))
+#price = cbind(price, lag)
 rm(lag)
 
 #####Skipping derivatives because they'll create a linearly dependent matrix:#####
@@ -120,12 +132,12 @@ rm(lag)
 # Trade History
 ###############################################################################
 
-for( lag in c(1:30,45,60,120,300,600) ){
+trades = load_lag_trades(price, orders, lag=.5)
+for( lag in c(1:60,2:60*60) ){
   trade_hist = load_lag_trades( price, orders, lag=lag )
-  price = cbind( price, trade_hist )
+  trades = cbind( trades, trade_hist )
 }
-
-price$Model.No = as.numeric( price$Time %% (24*60*60) > 6.75*60*60 & price$Time %% (24*60*60) < 13.5*60*60 )
+write.csv(trades,"price_trade_cols.csv",row.names=F)
 
 write.csv( price, file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/price.csv", row.names=F )
 write.csv( file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/price.csv", price, row.names=F )
