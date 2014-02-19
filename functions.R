@@ -14,6 +14,7 @@ library(ggplot2)
 library(scales)
 library(neuralnet)
 library(biglm)
+library(sqldf)
 
 eval_preds = function( preds, act, time=NULL ){
   SS = sum( (preds-act)[!is.na(preds) & act!=0]^2 )
@@ -213,6 +214,86 @@ cvModel = function(d, cvGroup, indCol, model="neuralnet(Y ~ X1 + X2 + X3 + X4 + 
   if(length(mods)==0) return(ensem)
   return(list(ensemble=ensem, models=mods))
 }
+  
+#This function fits cross-validated models using the bigglm package as well as sqldf.
+#Specify which set of variables you want by setting the corresponding flags to T.
+#lags applies to all variables.
+#data.dir tells R where to look for the data files.
+cvModel.bigglm = function(data.dir="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data"
+  ,lags=1:5, price_adj=F, price_exp=F, trades=F, log_book_imb_inside=F, log_book_imb=F, chunk.rows=50000){
+  #Change directories to the data directory:
+  curr.dir = getwd()
+  setwd(data.dir)
+  
+  #Define which files need to be read
+  data.files = c()
+  if( price_adj )           data.files = c(data.files,"price_lag_")
+  if( price_exp )           data.files = c(data.files,"price_exp_lag_")
+  if( log_book_imb_inside ) data.files = c(data.files,"log_book_imb_inside_lag_")
+  if( log_book_imb )        data.files = c(data.files,"log_book_imb_lag_")
+  lag.files = c()
+  if( any(lags %in% (1:60*.01)) ) lag.files = c(lag.files, "hund")
+  if( any(lags %in% (7:60*.1)) )  lag.files = c(lag.files, "tenth")
+  if( any(lags %in% 7:60) )       lag.files = c(lag.files, "seconds")
+  if( any(lags %in% (2:60*60)) )  lag.files = c(lag.files, "minutes")
+  data.files = merge( data.files, lag.files )
+  data.files = paste0( apply( data.files, 1, paste0, collapse="" ), "_cols.csv" )
+  #Add in the trade files separately
+  if( trades & any(lags %in% 1:30) )       data.files = c(data.files,"price_trade_sec_1_30.csv")
+  if( trades & any(lags %in% 31:60) )      data.files = c(data.files,"price_trade_sec_31_60.csv")
+  if( trades & any(lags %in% (2:30*60)) )  data.files = c(data.files,"price_trade_min_2_30.csv")
+  if( trades & any(lags %in% (31:60*60)) ) data.files = c(data.files,"price_trade_min_31_60.csv")
+  if( length(data.files)==1 ) stop("No valid data to read")
+  
+  #Define column names
+  data.colnames = list()
+  for( i in data.files ){
+    data.colnames[[length(data.colnames)+1]] = colnames(read.csv(i,nrow=1))
+  }
+  price_base_colnames = colnames(read.csv("price_base_cols.csv",nrows=1))
+  model_cols = c()
+  if( price_adj )           model_cols = c(model_cols, paste0( "Lag_", lags, "_MicroPriceAdj" ) )
+  if( price_exp )           model_cols = c(model_cols, paste0( "Lag_", lags, "_MicroPriceAdjExp" ) )
+  if( trades )              model_cols = c(model_cols, paste0( "Units_Lag_", lags[lags>=1], "s" ), paste0( "Units_SELL_Lag_", lags[lags>=1], "s" ) )
+  if( log_book_imb_inside ) model_cols = c(model_cols, paste0( "Lag_", lags, "_LogBookImbInside" ) )
+  if( log_book_imb )        model_cols = c(model_cols, paste0( "Lag_", lags, "_LogBookImb" ) )
+
+  preds = rep(0,length(count.fields("price_base_cols.csv")))
+  for( cvGroupNo %in% 1:10 ){
+    #Define function to read data:
+    read.d = function(reset){
+      if(reset){
+        skip.rows<<-0
+        return(NULL)
+      }
+      out = read.csv( file="price_base_cols.csv", skip=skip.rows, nrows=chunk.rows )
+      colnames(out) = price_base_colnames
+      for( i in 1:length(data.files) ){
+        temp = read.csv( file=data.files[i], skip=skip.rows, nrows=chunk.rows )
+        colnames(temp) = data.colnames[[i]]
+        temp = temp[,colnames(temp) %in% model_cols, drop=FALSE]
+        out = cbind(out, temp)
+      }
+      skip.rows <<- skip.rows + chunk.rows
+      if( nrow(out)==0 ) return(NULL)
+      #Stop processing once you hit test data:
+      if( any(out$cvGroup == -1) ) skip.rows <<- length(preds)
+      return(out[!out$cvGroup %in% c(cvGroupNo,-1),])
+    }
+    
+    #Create the bigmatrix model:
+    form = as.formula( paste0( "PriceDiff1SecAhead ~", paste(model_cols,collapse="+") ) )
+    start = Sys.time()
+    fit = bigglm( form, read.d )
+    Sys.time() - start
+    
+    #Predict on the holdout group as well as the test group
+    
+  }
+  
+  #Go back to original directory:
+  setwd(curr.dir)
+}
 
 create.read.f = function(filename,chunk.rows=100){
   f = function(reset=TRUE){
@@ -239,27 +320,6 @@ create.read.f = function(filename,chunk.rows=100){
 #fit = glm(X1 ~ X2 + X3, data=d)
 #summary(fit.big)
 #summary(fit)
-
-make_raw = function(){
-  options(digits.secs=6)
-  
-  raw = read.csv(file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/20131104.CLZ3.log")
-  raw = rbind(raw, read.csv(file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/20131105.CLZ3.log") )
-  raw$Time = as.POSIXct(strptime(x=raw$Time, format="%Y%m%d %H:%M:%OS"))
-
-  #Data frame with prices:
-  price = raw[raw$RestingSide=="",]
-  price = price[,c(1:31,35:37)]
-  #Round price values to bid/ask values to pennies:
-  price[,1:10*3+1] = apply( price[,1:10*3+1], c(1,2), function(x)round(x,2) )
-  
-  #Data frame with transactions:
-  orders = raw[raw$RestingSide!="",]
-  orders = orders[,c(1,32:34)]
-  
-  rm(raw); gc()
-  return(list(price=price, orders=orders))
-}
 
 #To bring in lagged times, use Rcpp (so you can loop efficiently):
 #prices (the input, must be a matrix) should be two columns: time (numeric, in seconds) and variable to lag.
