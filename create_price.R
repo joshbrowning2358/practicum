@@ -110,93 +110,36 @@ for(i in rmCols) price[,i] = NULL
 write.csv(price,"price_base_cols.csv",row.names=F)
 
 ###############################################################################
-# Add Lagged Time Variables and estimated derivatives
+# Add Lagged Time Variables
 ###############################################################################
 
-lag = load_lag_price(price[,c("Time","MicroPriceAdj")], lags=1:60*.01)
-write.csv(lag,"price_lag_hund_cols.csv",row.names=F)
+library(bigmemory)
+d = big.matrix( nrow=nrow(price), ncol=(60+54+54+59)*4+60+59+11, backingfile="model_matrix" )
+index = 1
+for( i in 1:11 ){
+  d[,index] = price[,i]
+  index = index + 1
+}
 
-lag = load_lag_price(price[,c("Time","MicroPriceAdj")], lags=7:60*.1)
-write.csv(lag,"price_lag_tenth_cols.csv",row.names=F)
+for( lag in c(2:60*.01,7:60*.1,7:60,2:60*60 ) ){
+  d[,index] = load_lag_price(price[,c("Time","MicroPriceAdj")], lags=lag)
+  index = index + 1
+}
 
-lag = load_lag_price(price[,c("Time","MicroPriceAdj")], lags=7:60)
-write.csv(lag,"price_lag_seconds_cols.csv",row.names=F)
+for( lag in c(1:60*.01,7:60*.1,7:60,2:60*60 ) ){
+  d[,index] = load_lag_price(price[,c("Time","MicroPriceAdjExp")], lags=lag)
+  index = index + 1
+}
 
-lag = load_lag_price(price[,c("Time","MicroPriceAdj")], lags=2:60*60)
-write.csv(lag,"price_lag_minutes_cols.csv",row.names=F)
+for( lag in c(1:60*.01,7:60*.1,7:60,2:60*60 ) ){
+  d[,index] = load_lag_price(price[,c("Time","LogBookImb")], lags=lag)
+  index = index + 1
+}
 
-########### MicroPriceAdjExp
-
-lag = load_lag_price(price[,c("Time","MicroPriceAdjExp")], lags=1:60*.01)
-write.csv(lag,"price_exp_lag_hund_cols.csv",row.names=F)
-
-lag = load_lag_price(price[,c("Time","MicroPriceAdjExp")], lags=7:60*.1)
-write.csv(lag,"price_exp_lag_tenth_cols.csv",row.names=F)
-
-lag = load_lag_price(price[,c("Time","MicroPriceAdjExp")], lags=7:60)
-write.csv(lag,"price_exp_lag_seconds_cols.csv",row.names=F)
-
-lag = load_lag_price(price[,c("Time","MicroPriceAdjExp")], lags=2:60*60)
-write.csv(lag,"price_exp_lag_minutes_cols.csv",row.names=F)
-
-########### LogBookImb
-
-lag = load_lag_price(price[,c("Time","LogBookImb")], lags=1:60*.01)
-write.csv(lag,"log_book_imb_lag_hund_cols.csv",row.names=F)
-
-lag = load_lag_price(price[,c("Time","LogBookImb")], lags=7:60*.1)
-write.csv(lag,"log_book_imb_lag_tenth_cols.csv",row.names=F)
-
-lag = load_lag_price(price[,c("Time","LogBookImb")], lags=7:60)
-write.csv(lag,"log_book_imb_lag_seconds_cols.csv",row.names=F)
-
-lag = load_lag_price(price[,c("Time","LogBookImb")], lags=2:60*60)
-write.csv(lag,"log_book_imb_lag_minutes_cols.csv",row.names=F)
-
-########### LogBookImbInside
-
-lag = load_lag_price(price[,c("Time","LogBookImbInside")], lags=1:60*.01)
-write.csv(lag,"log_book_imb_inside_lag_hund_cols.csv",row.names=F)
-
-lag = load_lag_price(price[,c("Time","LogBookImbInside")], lags=7:60*.1)
-write.csv(lag,"log_book_imb_inside_lag_tenth_cols.csv",row.names=F)
-
-lag = load_lag_price(price[,c("Time","LogBookImbInside")], lags=7:60)
-write.csv(lag,"log_book_imb_inside_lag_seconds_cols.csv",row.names=F)
-
-lag = load_lag_price(price[,c("Time","LogBookImbInside")], lags=2:60*60)
-write.csv(lag,"log_book_imb_inside_minutes_cols.csv",row.names=F)
-
-
-
-#lag = load_lag_price(price[,c("Time","MicroPrice")], lags=c(1:30,45,60,120,300,600))
-#price = cbind(price, lag)
-rm(lag)
-
-#####Skipping derivatives because they'll create a linearly dependent matrix:#####
-#See http://en.wikipedia.org/wiki/Finite_difference_coefficients
-#deriv_mat = matrix(0,nrow=6,ncol=4)
-#deriv_mat[,1] = c(-137/60, 5, -5, 10/3, -5/4, 1/5)
-#deriv_mat[,2] = c(15/4, -77/6, 107/6, -13, 61/12, -5/6)
-#deriv_mat[,3] = c(-17/4, 71/4, -59/2, 49/2, -41/4, 7/4)
-#deriv_mat[,4] = c(3, -14, 26, -24, 11, -2)
-#derivs = as.matrix(price[,c("MicroPriceAdj",paste0("MicroPriceAdj_Lag_",1:5,"s"))]) %*% deriv_mat
-#colnames(derivs) = paste0("DerivAdj",1:4)
-#price = cbind(price, derivs)
-#rm(derivs)
-
-#derivs = as.matrix(price[,c("MicroPrice",paste0("MicroPrice_Lag_",1:5,"s"))]) %*% deriv_mat
-#colnames(derivs) = paste0("Deriv",1:4)
-#price = cbind(price, derivs)
-#rm(derivs)
-
-###############################################################################
-# Add Time Variables: Seem pretty useless, so skipping these too.
-###############################################################################
-
-#price$SecSinceOpen = price$Time %% (24*3600)
-#price$SecSinceHour = price$Time %% 3600
-#price$SecSinceMin = price$Time %% 60
+for( lag in c(1:60*.01,7:60*.1,7:60,2:60*60 ) ){
+  d[,index] = load_lag_price(price[,c("Time","LogBookImbInside")], lags=lag)
+  index = index + 1
+}
 
 ###############################################################################
 # Trade History
