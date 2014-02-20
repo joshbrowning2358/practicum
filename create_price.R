@@ -114,64 +114,48 @@ write.csv(price,"price_base_cols.csv",row.names=F)
 ###############################################################################
 
 library(bigmemory)
-d = big.matrix( nrow=nrow(price), ncol=(60+54+54+59)*4+60+59+11, backingfile="model_matrix" )
+d = big.matrix( nrow=nrow(price), ncol=(60+54+54+59)*4+(60+59)*2+11, backingfile="model_matrix" )
 index = 1
+cnames = c()
 for( i in 1:11 ){
   d[,index] = price[,i]
+  cnames[index] = colnames(price)[i]
   index = index + 1
 }
 
+# MicroPrice adjusted using linear model
 for( lag in c(1:60*.01,7:60*.1,7:60,2:60*60 ) ){
   d[,index] = load_lag_price(price[,c("Time","MicroPriceAdj")], lags=lag)
+  cnames[index] = paste0("Lag_",lag,"_MicroPriceAdj")
   index = index + 1
 }
 
+# MicroPrice adjusted using exponential weighting
 for( lag in c(1:60*.01,7:60*.1,7:60,2:60*60 ) ){
   d[,index] = load_lag_price(price[,c("Time","MicroPriceAdjExp")], lags=lag)
+  cnames[index] = paste0("Lag_",lag,"_MicroPriceAdjExp")
   index = index + 1
 }
 
+# Log( Order Book Imbalance ) for provided bids/offers
 for( lag in c(1:60*.01,7:60*.1,7:60,2:60*60 ) ){
   d[,index] = load_lag_price(price[,c("Time","LogBookImb")], lags=lag)
+  cnames[index] = paste0("Lag_",lag,"_LogBookImb")
   index = index + 1
 }
 
+# Log( Order Book Imbalance ) for just the inside bid and offer
 for( lag in c(1:60*.01,7:60*.1,7:60,2:60*60 ) ){
   d[,index] = load_lag_price(price[,c("Time","LogBookImbInside")], lags=lag)
+  cnames[index] = paste0("Lag_",lag,"_LogBookImbInside")
   index = index + 1
 }
 
-###############################################################################
-# Trade History
-###############################################################################
-
-trades = load_lag_trades(price, orders, lag=1)[,3:4]
-for( lag in c(3:30) ){
+# Number of Units traded and Number of Units traded on SELL side
+for( lag in c(1:60,2:60*60) ){
   trade_hist = load_lag_trades( price, orders, lag=lag )[,3:4]
-  trades = cbind( trades, trade_hist )
+  d[,index] = trade_hist[,1]
+  d[,index+1] = trade_hist[,2]
+  cnames[index:(index+1)] = paste0("Lag_", lag, c("_Units","_UnitsSELL") )
+  index = index + 2
 }
-write.csv(trades,"price_trade_sec_1_30.csv",row.names=F)
-
-trades = load_lag_trades(price, orders, lag=31)[,3:4]
-for( lag in c(32:60) ){
-  trade_hist = load_lag_trades( price, orders, lag=lag )[,3:4]
-  trades = cbind( trades, trade_hist )
-}
-write.csv(trades,"price_trade_sec_31_60.csv",row.names=F)
-
-trades = load_lag_trades(price, orders, lag=2*60)[,3:4]
-for( lag in c(3:30*60) ){
-  trade_hist = load_lag_trades( price, orders, lag=lag )[,3:4]
-  trades = cbind( trades, trade_hist )
-}
-write.csv(trades,"price_trade_min_2_30.csv",row.names=F)
-
-trades = load_lag_trades(price, orders, lag=31*60)[,3:4]
-for( lag in c(32:60*60) ){
-  trade_hist = load_lag_trades( price, orders, lag=lag )[,3:4]
-  trades = cbind( trades, trade_hist )
-}
-write.csv(trades,"price_trade_min_31_60.csv",row.names=F)
-
-write.csv( price, file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/price.csv", row.names=F )
-write.csv( file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/price.csv", price, row.names=F )
