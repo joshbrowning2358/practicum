@@ -259,7 +259,7 @@ cvModel.bigglm = function(data.dir="C:/Users/jbrowning/Desktop/To Home/Personal/
   if( log_book_imb )        model_cols = c(model_cols, paste0( "Lag_", lags, "_LogBookImb" ) )
 
   preds = rep(0,length(count.fields("price_base_cols.csv")))
-#  for( cvGroupNo%in% 1:10 ){
+#  Loop over cvGroupNo
 #    #Define function to read data:
 #    read.d = function(reset){
 #      if(reset){
