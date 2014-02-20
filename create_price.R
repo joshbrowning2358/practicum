@@ -121,7 +121,7 @@ for( i in 1:11 ){
   index = index + 1
 }
 
-for( lag in c(2:60*.01,7:60*.1,7:60,2:60*60 ) ){
+for( lag in c(1:60*.01,7:60*.1,7:60,2:60*60 ) ){
   d[,index] = load_lag_price(price[,c("Time","MicroPriceAdj")], lags=lag)
   index = index + 1
 }
