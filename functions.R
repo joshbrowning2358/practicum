@@ -282,10 +282,10 @@ cvModel.bigglm = function(data.dir="C:/Users/jbrowning/Desktop/To Home/Personal/
     }
     
     #Create the bigmatrix model:
-    form = as.formula( paste0( "PriceDiff1SecAhead ~", paste(model_cols,collapse="+") ) )
-    start = Sys.time()
-    fit = bigglm( form, read.d )
-    Sys.time() - start
+#    form = as.formula( paste0( "PriceDiff1SecAhead ~", paste(model_cols,collapse="+") ) )
+#    start = Sys.time()
+#    fit = bigglm( form, read.d )
+#    Sys.time() - start
     
     #Predict on the holdout group as well as the test group
     
