@@ -259,37 +259,37 @@ cvModel.bigglm = function(data.dir="C:/Users/jbrowning/Desktop/To Home/Personal/
   if( log_book_imb )        model_cols = c(model_cols, paste0( "Lag_", lags, "_LogBookImb" ) )
 
   preds = rep(0,length(count.fields("price_base_cols.csv")))
-  for( cvGroupNo %in% 1:10 ){
-    #Define function to read data:
-    read.d = function(reset){
-      if(reset){
-        skip.rows<<-0
-        return(NULL)
-      }
-      out = read.csv( file="price_base_cols.csv", skip=skip.rows, nrows=chunk.rows )
-      colnames(out) = price_base_colnames
-      for( i in 1:length(data.files) ){
-        temp = read.csv( file=data.files[i], skip=skip.rows, nrows=chunk.rows )
-        colnames(temp) = data.colnames[[i]]
-        temp = temp[,colnames(temp) %in% model_cols, drop=FALSE]
-        out = cbind(out, temp)
-      }
-      skip.rows <<- skip.rows + chunk.rows
-      if( nrow(out)==0 ) return(NULL)
-      #Stop processing once you hit test data:
-      if( any(out$cvGroup == -1) ) skip.rows <<- length(preds)
-      return(out[!out$cvGroup %in% c(cvGroupNo,-1),])
-    }
-    
-    #Create the bigmatrix model:
+#  for( cvGroupNo %in% 1:10 ){
+#    #Define function to read data:
+#    read.d = function(reset){
+#      if(reset){
+#        skip.rows<<-0
+#        return(NULL)
+#      }
+#      out = read.csv( file="price_base_cols.csv", skip=skip.rows, nrows=chunk.rows )
+#      colnames(out) = price_base_colnames
+#      for( i in 1:length(data.files) ){
+#        temp = read.csv( file=data.files[i], skip=skip.rows, nrows=chunk.rows )
+#        colnames(temp) = data.colnames[[i]]
+#        temp = temp[,colnames(temp) %in% model_cols, drop=FALSE]
+#        out = cbind(out, temp)
+#      }
+#      skip.rows <<- skip.rows + chunk.rows
+#      if( nrow(out)==0 ) return(NULL)
+#      #Stop processing once you hit test data:
+#      if( any(out$cvGroup == -1) ) skip.rows <<- length(preds)
+#      return(out[!out$cvGroup %in% c(cvGroupNo,-1),])
+#    }
+#    
+#    #Create the bigmatrix model:
 #    form = as.formula( paste0( "PriceDiff1SecAhead ~", paste(model_cols,collapse="+") ) )
 #    start = Sys.time()
 #    fit = bigglm( form, read.d )
 #    Sys.time() - start
-    
-    #Predict on the holdout group as well as the test group
-    
-  }
+#    
+#    #Predict on the holdout group as well as the test group
+#    
+#  }
   
   #Go back to original directory:
   setwd(curr.dir)
