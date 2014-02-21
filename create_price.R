@@ -159,3 +159,5 @@ for( lag in c(1:60,2:60*60) ){
   cnames[index:(index+1)] = paste0("Lag_", lag, c("_Units","_UnitsSELL") )
   index = index + 2
 }
+
+write.csv(cnames, file="cnames.csv", row.names=F)
