@@ -17,7 +17,7 @@ library(biglm)
 library(bigmatrix)
 library(sqldf)
 
-eval_preds = function( preds, price_diff, price, time ){
+eval_preds = function( preds, price_diff=d[,5], price=d[,2], time=d[,1] ){
   if( any(is.na(preds)) ) stop("No NAs allowed in predictions!  Replace with MicroPrice at that time.")
   eval.rows = c(0,diff( price ))!=0
   eval.rows[is.na(eval.rows)] = FALSE
