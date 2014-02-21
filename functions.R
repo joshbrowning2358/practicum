@@ -14,7 +14,7 @@ library(ggplot2)
 library(scales)
 library(neuralnet)
 library(biglm)
-library(bigmatrix)
+library(bigmemory)
 library(sqldf)
 
 eval_preds = function( preds, price_diff=d[,5], price=d[,2], time=d[,1] ){
