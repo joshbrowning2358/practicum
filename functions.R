@@ -28,6 +28,11 @@ eval_preds = function( preds, price_diff, price, time ){
        ,ifelse( time < 120*60*60, "Friday", "Error" ) ) ) ) )
   if( any(day %in% c("Error","Wednesday")) ) stop("Bad times: Wednesday or out of range")
   df = data.frame( err=preds-price_diff, day, time )
+  df = df[eval.rows,]
+  df$day = factor(df$day, levels=c("Monday","Tuesday","Thursday","Friday"))
+  ddply( df, "day", function(x){
+    print(paste("Sum of Squares for day",x$day[1],"is",round(sum(x$err^2)/nrow(x),4)))
+  } )
   SS = sum( (preds-price_diff)[]^2 )
   cnt = sum( !is.na(preds) & act!=0 )
   print(paste("MSE of target is:", round(sum(act^2)/sum(act!=0),6)))
