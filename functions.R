@@ -21,40 +21,48 @@ eval_preds = function( preds, price_diff, price, time ){
   if( any(is.na(preds)) ) stop("No NAs allowed in predictions!  Replace with MicroPrice at that time.")
   eval.rows = c(0,diff( price ))!=0
   eval.rows[is.na(eval.rows)] = FALSE
-  day = ifelse( time < 24*60*60, "Monday"
-       ,ifelse( time < 48*60*60, "Tuesday"
-       ,ifelse( time < 72*60*60, "Wednesday"
-       ,ifelse( time < 96*60*60, "Thursday"
-       ,ifelse( time < 120*60*60, "Friday", "Error" ) ) ) ) )
-  if( any(day %in% c("Error","Wednesday")) ) stop("Bad times: Wednesday or out of range")
-  df = data.frame( err=preds-price_diff, day, time )
-  df = df[eval.rows,]
-  df$day = factor(df$day, levels=c("Monday","Tuesday","Thursday","Friday"))
-  ddply( df, "day", function(x){
-    print(paste("Sum of Squares for day",x$day[1],"is",round(sum(x$err^2)/nrow(x),4)))
-  } )
-  SS = sum( (preds-price_diff)[]^2 )
-  cnt = sum( !is.na(preds) & act!=0 )
-  print(paste("MSE of target is:", round(sum(act^2)/sum(act!=0),6)))
-  print(paste("MSE of predictions is:", round(SS/cnt,6)))
+#  day = ifelse( time < 24*60*60, "Monday"
+#       ,ifelse( time < 48*60*60, "Tuesday"
+#       ,ifelse( time < 72*60*60, "Wednesday"
+#       ,ifelse( time < 96*60*60, "Thursday"
+#       ,ifelse( time < 120*60*60, "Friday", "Error" ) ) ) ) )
+#  if( any(day %in% c("Error","Wednesday")) ) stop("Bad times: Wednesday or out of range")
+  d.eval = data.frame( err=preds-price_diff, time, price, price_diff )
+  d.eval = d.eval[eval.rows,]
+#  d.eval$day = factor(d.eval$day, levels=c("Monday","Tuesday","Thursday","Friday"))
+#  ddply( d.eval, "day", function(x){
+#    print(paste("Sum of Squares for day",x$day[1],"is",round(sum(x$err^2)/nrow(x),4)))
+#  } )
 
-  #If time column is provided, generate plot of performance by 15 minute intervals
-  if( !is.null(time) ){
-    d = data.frame( preds, act, time = floor(time/(15*60))*15*60 )
-    d.agg = ddply( d, "time", function(df){
-      SS = sum( (df$preds-df$act)[!is.na(df$preds) & df$act!=0]^2 )
-      cnt = sum( !is.na(df$preds) & df$act!=0 )
-      data.frame(Base.MSE=sum(df$act^2)/sum(df$act!=0)
-        ,Model.MSE = SS/cnt )
-    } )
-    d.agg$Improvement = d.agg$Model.MSE / d.agg$Base.MSE
-    toPlot = melt(d.agg, id.vars="time", measure.vars=c("Improvement","Base.MSE"))
-    baseline = data.frame(time=c(0,max(d.agg$time)), value=1, variable="Improvement")
-    print( ggplot(toPlot, aes(x=time, y=value) ) + geom_line() + facet_wrap(~variable, scales="free") +
-      geom_line(data=baseline, color="red", linetype=2) )
-  }
+  #Aggregate performance over time:
+  d.eval$time = floor( d.eval$time/15/60 )*15*60
+  d.agg.t = ddply( d.eval, "time", function(df){
+    SS = sum( (df$err)^2 )
+    data.frame(#Base.MSE=sum(df$price_diff^2)/nrow(df),
+      Model.MSE = SS/nrow(df) )
+  } )
+  #d.agg.t$Improvement = d.agg.t$Model.MSE / d.agg.t$Base.MSE
+  #toPlot = melt(d.agg.t, id.vars="time", measure.vars=c("Improvement","Base.MSE"))
+  #baseline = data.frame(time=c(0,max(d.agg.t$time)), value=1, variable="Improvement")
+  #print( ggplot(toPlot, aes(x=time, y=value) ) + geom_point() + facet_wrap(~variable, scales="free") +
+  #  geom_line(data=baseline, color="red", linetype=2) ) 
+
+  #Aggregate performance over actual MicroPrice:
+  d.eval$price = floor( d.eval$price*100 )/100
+  d.agg.p = ddply( d.eval, "price", function(df){
+    SS = sum( (df$err)^2 )
+    data.frame(#Base.MSE=sum(df$price_diff^2)/nrow(df),
+      Model.MSE = SS/nrow(df) )
+  } )
+  #d.agg.p$Improvement = d.agg.p$Model.MSE / d.agg.p$Base.MSE
+  #toPlot = melt(d.agg.p, id.vars="price", measure.vars=c("Improvement","Base.MSE"))
+  #baseline = data.frame(price=c(min(d.agg.p$price),max(d.agg.p$price)), value=1, variable="Improvement")
+  #print( ggplot(toPlot, aes(x=price, y=value) ) + geom_point() + geom_smooth() +
+  #  facet_wrap(~variable, scales="free") +
+  #  geom_line(data=baseline, color="red", linetype=2) )
   
-  return(SS/cnt)
+  #return performance aggregated by time and by current price
+  return( list( d.agg.t, d.agg.p ) )
 }
 
 #form: specify the model formula, i.e. Y ~ X1 + X2 + X3.  Note that "." notation is supported.
