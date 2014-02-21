@@ -1,421 +1,163 @@
-library(randomForest)
-library(rpart)
-library(gbm)
-library(AMORE)
-library(glmnet)
-library(pls)
-library(car)
-library(Rcpp)
-library(inline)
-library(RcppArmadillo)
-library(reshape)
-library(plyr)
-library(ggplot2)
-library(scales)
-library(neuralnet)
-library(biglm)
-library(bigmatrix)
-library(sqldf)
+source_github("https://raw2.github.com/rockclimber112358/practicum/master/functions.R")
+source("/u/st/fl/jbrownin/MATH598_Statistics_Practicum/R_Code/functions.R")
 
-eval_preds = function( preds, price_diff=d[,5], price=d[,2], time=d[,1] ){
-  if( any(is.na(preds)) ) stop("No NAs allowed in predictions!  Replace with MicroPrice at that time.")
-  eval.rows = c(0,diff( price ))!=0
-  eval.rows[is.na(eval.rows)] = FALSE
-#  day = ifelse( time < 24*60*60, "Monday"
-#       ,ifelse( time < 48*60*60, "Tuesday"
-#       ,ifelse( time < 72*60*60, "Wednesday"
-#       ,ifelse( time < 96*60*60, "Thursday"
-#       ,ifelse( time < 120*60*60, "Friday", "Error" ) ) ) ) )
-#  if( any(day %in% c("Error","Wednesday")) ) stop("Bad times: Wednesday or out of range")
-  d.eval = data.frame( err=preds-price_diff, time, price, price_diff )
-  d.eval = d.eval[eval.rows,]
-#  d.eval$day = factor(d.eval$day, levels=c("Monday","Tuesday","Thursday","Friday"))
-#  ddply( d.eval, "day", function(x){
-#    print(paste("Sum of Squares for day",x$day[1],"is",round(sum(x$err^2)/nrow(x),4)))
-#  } )
+options(digits.secs=6)
 
-  #Aggregate performance over time:
-  d.eval$time = floor( d.eval$time/15/60 )*15*60
-  d.agg.t = ddply( d.eval, "time", function(df){
-    SS = sum( (df$err)^2 )
-    data.frame(#Base.MSE=sum(df$price_diff^2)/nrow(df),
-      Model.MSE = SS/nrow(df) )
-  } )
-  #d.agg.t$Improvement = d.agg.t$Model.MSE / d.agg.t$Base.MSE
-  #toPlot = melt(d.agg.t, id.vars="time", measure.vars=c("Improvement","Base.MSE"))
-  #baseline = data.frame(time=c(0,max(d.agg.t$time)), value=1, variable="Improvement")
-  #print( ggplot(toPlot, aes(x=time, y=value) ) + geom_point() + facet_wrap(~variable, scales="free") +
-  #  geom_line(data=baseline, color="red", linetype=2) ) 
+###############################################################################
+# Raw processing: read in files, restructure
+###############################################################################
 
-  #Aggregate performance over actual MicroPrice:
-  d.eval$price = floor( d.eval$price*100 )/100
-  d.agg.p = ddply( d.eval, "price", function(df){
-    SS = sum( (df$err)^2 )
-    data.frame(#Base.MSE=sum(df$price_diff^2)/nrow(df),
-      Model.MSE = SS/nrow(df) )
-  } )
-  #d.agg.p$Improvement = d.agg.p$Model.MSE / d.agg.p$Base.MSE
-  #toPlot = melt(d.agg.p, id.vars="price", measure.vars=c("Improvement","Base.MSE"))
-  #baseline = data.frame(price=c(min(d.agg.p$price),max(d.agg.p$price)), value=1, variable="Improvement")
-  #print( ggplot(toPlot, aes(x=price, y=value) ) + geom_point() + geom_smooth() +
-  #  facet_wrap(~variable, scales="free") +
-  #  geom_line(data=baseline, color="red", linetype=2) )
-  
-  #return performance aggregated by time and by current price
-  return( list( d.agg.t, d.agg.p ) )
+raw = read.csv(file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/Data/20131104.CLZ3.log")
+raw = rbind(raw, read.csv(file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/Data/20131105.CLZ3.log") )
+raw = rbind(raw, read.csv(file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/Data/20131107.CLZ3.log") )
+raw = rbind(raw, read.csv(file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/Data/20131108.CLZ3.log") )
+
+raw = read.csv(file="20131104.CLZ3.log")
+raw = rbind(raw, read.csv(file="20131105.CLZ3.log") )
+raw = rbind(raw, read.csv(file="20131107.CLZ3.log") )
+raw = rbind(raw, read.csv(file="20131108.CLZ3.log") )
+
+#raw = read.csv(file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/20131104.CLZ3.log")
+#raw = rbind(raw, read.csv(file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/20131105.CLZ3.log") )
+raw$Time = as.POSIXct(strptime(x=raw$Time, format="%Y%m%d %H:%M:%OS"))
+#Convert time to a numeric vector (i.e. seconds after 2013-11-04 00:00:00):
+raw$Time = as.numeric( raw$Time - as.POSIXct("2013-11-04") )
+
+#Data frame with prices:
+price = raw[raw$RestingSide=="",]
+price = price[,c(1:31,35:37)]
+
+#Data frame with transactions:
+orders = raw[raw$RestingSide!="",]
+orders = orders[,c(1,32:34)]
+orders = orders[orders$RestingSide!="null",]
+write.csv( file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/orders.csv", orders )
+write.csv( orders, file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/orders.csv", row.names=F )
+
+rm(raw); gc()
+
+price$PriceDiff1SecAhead = (price$MicroPrice1SecAhead - price$MicroPrice)*100
+#price$PriceRatio1SecAhead = price$MicroPrice1SecAhead / price$MicroPrice - 1
+#price$PriceDiff60SecAhead = price$MicroPrice60SecAhead - price$MicroPrice
+#price$PriceRatio60SecAhead = price$MicroPrice60SecAhead / price$MicroPrice - 1
+set.seed(123)
+price$cvGroup = c(sample(c(rep(1:5,each=148125),rep(6:10,each=148124))),rep(-1,1237233))
+price$Model.No = as.numeric( price$Time %% (24*60*60) > 6.75*60*60 & price$Time %% (24*60*60) < 13.5*60*60 )
+
+###############################################################################
+# Define adjusted microprice(s)
+###############################################################################
+
+#Define quantities for bid, bid-.01, bid-.02, bid-.03, bid-.04 and offer, offer+.01, offer+.02, offer+.03, offer+.04
+price$BidHigh1Cnt = price$BidQuantity1
+price$BidHigh2Cnt = apply(price[,1:5*3-1]*(abs(price[,1:5*3+1]-price$BidPrice1+.01)<.005),1,sum, na.rm=T)
+price$BidHigh3Cnt = apply(price[,1:5*3-1]*(abs(price[,1:5*3+1]-price$BidPrice1+.02)<.005),1,sum, na.rm=T)
+price$BidHigh4Cnt = apply(price[,1:5*3-1]*(abs(price[,1:5*3+1]-price$BidPrice1+.03)<.005),1,sum, na.rm=T)
+price$BidHigh5Cnt = apply(price[,1:5*3-1]*(abs(price[,1:5*3+1]-price$BidPrice1+.04)<.005),1,sum, na.rm=T)
+price$OfferLow1Cnt = price$OfferQuantity1
+price$OfferLow2Cnt = apply(price[,6:10*3-1]*(abs(price[,6:10*3+1]-price$OfferPrice1-.01)<.005),1,sum, na.rm=T)
+price$OfferLow3Cnt = apply(price[,6:10*3-1]*(abs(price[,6:10*3+1]-price$OfferPrice1-.02)<.005),1,sum, na.rm=T)
+price$OfferLow4Cnt = apply(price[,6:10*3-1]*(abs(price[,6:10*3+1]-price$OfferPrice1-.03)<.005),1,sum, na.rm=T)
+price$OfferLow5Cnt = apply(price[,6:10*3-1]*(abs(price[,6:10*3+1]-price$OfferPrice1-.04)<.005),1,sum, na.rm=T)
+
+form = paste("PriceDiff1SecAhead ~", paste0("BidHigh",1:5,"Cnt", collapse=" + "),"+",paste0("OfferLow",1:5,"Cnt", collapse=" + "))
+
+#cvGroup = sample(1:10, size=nrow(price), replace=T)
+#fit = cvModel( d=price, cvGroup, indCol=35, model=paste("glm(", form, ")" ) )
+#coeffs = data.frame( do.call("rbind", fit$models) )
+#coeffs = melt(coeffs, measure.vars=1:ncol(coeffs) )
+#ggplot( coeffs, aes(x=variable, y=value) ) + geom_point() +
+#  geom_boxplot()
+#Coefficients are very consistent across CV groups (except for intercept).  Thus, it should be safe to use the model without worrying about it skewing cross-validation results.
+
+fit = glm( as.formula(form), data=price[price$Time<=2*24*60*60,])
+price$MicroPriceAdj = predict(fit, newdata=price)
+price$MicroPriceAdj = price$MicroPriceAdj + price$MicroPrice
+#Note: could also do this for 60 seconds ahead, but you get almost identical coefficients
+
+price$LogBookImb = log( (price$BidQuantity1 + price$BidQuantity2 + price$BidQuantity3 + price$BidQuantity4 + price$BidQuantity5)
+  / (price$OfferQuantity1 + price$OfferQuantity2 + price$OfferQuantity3 + price$OfferQuantity4 + price$OfferQuantity5) )
+price$LogBookImbInside = log( price$BidQuantity1 / price$OfferQuantity1 )
+price$BidQuantityAdj = as.numeric( cbind(price$BidHigh1Cnt, price$BidHigh2Cnt, price$BidHigh3Cnt, price$BidHigh4Cnt, price$BidHigh5Cnt) %*% 2^(0:-4) )
+price$OfferQuantityAdj = as.numeric( cbind(price$OfferLow1Cnt, price$OfferLow2Cnt, price$OfferLow3Cnt, price$OfferLow4Cnt, price$OfferLow5Cnt) %*% 2^(0:-4) )
+price$MicroPriceAdjExp = (price$BidPrice1*(price$OfferQuantityAdj)+price$OfferPrice1*(price$BidQuantityAdj) ) /
+  (price$OfferQuantityAdj + price$BidQuantityAdj)
+
+ggplot(price[sample(1:nrow(price),size=100000),], aes(x=LogBookImb, y=PriceDiff1SecAhead) ) +
+  geom_point(alpha=.1) + geom_smooth()
+ggplot(price[sample(1:nrow(price),size=100000),], aes(x=LogBookImbInside, y=PriceDiff1SecAhead) ) +
+  geom_point(alpha=.1) + geom_smooth()
+ggplot(price[sample(1:nrow(price),size=100000),], aes(x=MicroPriceAdjExp, y=PriceDiff1SecAhead) ) +
+  geom_point(alpha=.1) + geom_smooth()
+ggplot(price[sample(1:nrow(price),size=100000),], aes(x=MicroPriceAdjExp, y=MicroPrice) ) +
+  geom_point(alpha=.1) + geom_smooth()
+
+###############################################################################
+# Add volume columns
+###############################################################################
+
+#price$TotalBidQuantity = price$BidQuantity1 + price$BidQuantity2 + price$BidQuantity3 + price$BidQuantity4 + price$BidQuantity5
+#price$TotalOfferQuantity = price$OfferQuantity1 + price$OfferQuantity2 + price$OfferQuantity3 + price$OfferQuantity4 + price$OfferQuantity5
+#colnames(price)[colnames(price)=="BidQuantity1"] = "InsideBidQuantity"
+#colnames(price)[colnames(price)=="OfferQuantity1"] = "InsideOfferQuantity"
+#price$Spread = price$OfferPrice1 - price$BidPrice1
+
+#Remove unneccesary columns:
+rmCols = c(paste0("BidQuantity",1:5), paste0("BidNumberOfOrders",1:5), paste0("BidPrice",1:5)
+          ,paste0("OfferQuantity",1:5), paste0("OfferNumberOfOrders",1:5), paste0("OfferPrice",1:5)
+          ,paste0("BidHigh",1:5,"Cnt"), paste0("OfferLow",1:5,"Cnt"), "BidQuantityAdj", "OfferQuantityAdj")
+for(i in rmCols) price[,i] = NULL
+write.csv(price,"price_base_cols.csv",row.names=F)
+
+###############################################################################
+# Add Lagged Time Variables
+###############################################################################
+
+library(bigmemory)
+d = big.matrix( nrow=nrow(price), ncol=(60+54+54+59)*4+(60+59)*2+11, backingfile="model_matrix" )
+index = 1
+cnames = c()
+for( i in 1:11 ){
+  d[,index] = price[,i]
+  cnames[index] = colnames(price)[i]
+  index = index + 1
 }
 
-#form: specify the model formula, i.e. Y ~ X1 + X2 + X3.  Note that "." notation is supported.
-#data: a dataframe containing the data for which the model is desired.
-#hidden: the number of hidden neurons in the network.  The package only supports one hidden layer.
-#steps: how many iterations should be ran?  Note this may need adjustment based on convergence.
-#print: how many times should the function print the current fit number and LMS?
-#...: other parameters to be passed into newff or train in the AMORE package.
-fit.nn = function( form, data, hidden, steps=1000, print=10, learning.rate.global=1e-2, momentum.global=.5, report=T
-      ,error.criterium="LMS", Stao=NA, hidden.layer="tansig", output.layer="purelin", method="ADAPTgdwm" ){
-  #Parse the form object to determine number of input neurons and relevant data
-  if( !is.formula(form) ) stop("Formula incorrectly specified")
-  form = as.character( form )
-  indCol = (1:ncol(data))[colnames(data)==form[2]]
-  depVars = strsplit(form[3],"+", fixed=T)
-  #period matches everything:
-  if( depVars=="." ){
-    depCols = (1:ncol(data))[-indCol]
-  } else {
-    depVars = sapply( depVars, function(x)gsub(" ","",x) )
-    depCols = (1:ncol(data))[colnames(data) %in% depVars]
-  }
-  
-  #Fit the neural network
-  mod = newff( n.neurons=c(length(depCols)+1,hidden,1), learning.rate.global=1e-2, momentum.global=0.5,
-    error.criterium="LMS", Stao=NA, hidden.layer="tansig",
-    output.layer="purelin", method="ADAPTgdwm")
-  mod.fit = train( mod, T=as.matrix(data[,indCol]), P=cbind(1,data[,depCols]), n.shows=print, show.step=steps/print, report=report )
-
-  #Pull off the output weights
-  weights = lapply( mod.fit$net$neurons, function(x)x$weights )
-  hidden.wts = do.call( "rbind", weights[1:hidden] )
-  output.wts = weights[[hidden+1]]
-  return(list(hidden.wts=hidden.wts, output.wts=output.wts, activation.function=hidden.layer, form=form))
+# MicroPrice adjusted using linear model
+for( lag in c(1:60*.01,7:60*.1,7:60,2:60*60 ) ){
+  d[,index] = load_lag_price(price[,c("Time","MicroPriceAdj")], lags=lag)
+  cnames[index] = paste0("Lag_",lag,"_MicroPriceAdj")
+  index = index + 1
 }
 
-fit.glmnet = function(form, data, lambda=1*(0.9)^(0:100), family=c("gaussian","binomial","poisson","multinomial","cox","mgaussian")
-  ,alpha = 1, nlambda = 100, maxit=100000 ){
-  #Parse the form object to determine number of input neurons and relevant data
-  if( !is.formula(form) ) stop("Formula incorrectly specified")
-  form = as.character( form )
-  indCol = (1:ncol(data))[colnames(data)==form[2]]
-  depVars = strsplit(form[3],"+", fixed=T)
-  #period matches everything:
-  if( depVars=="." ){
-    depCols = (1:ncol(data))[-indCol]
-  } else {
-    depVars = sapply( depVars, function(x)gsub(" ","",x) )
-    depCols = (1:ncol(data))[colnames(data) %in% depVars]
-  }
-  
-  filter = apply( data[,c(depCols,indCol)], 1, function(x){all(!is.na(x))} )
-  if(any(!filter)){
-    warning("Missing values in data frame.  Removed for analysis")
-    data = data[filter,]
-  }
-  
-  glmnet(x=as.matrix(data[,depCols]), y=as.matrix(data[,indCol]), lambda=lambda, family=family, alpha=alpha, nlambda=nlambda, maxit=maxit)
+# MicroPrice adjusted using exponential weighting
+for( lag in c(1:60*.01,7:60*.1,7:60,2:60*60 ) ){
+  d[,index] = load_lag_price(price[,c("Time","MicroPriceAdjExp")], lags=lag)
+  cnames[index] = paste0("Lag_",lag,"_MicroPriceAdjExp")
+  index = index + 1
 }
 
-#mod: A list as output by fit.nn.  It should contain hidden.wts, output.wts, activation.function and form.  Custom activation functions are not supported!
-#newdata: the data for which a prediction is desired.
-predict.nn = function( mod, newdata ){
-  newdata = cbind( 1, newdata )
-  depVars = strsplit(mod$form[3],"+", fixed=T)
-  depVars = sapply( depVars, function(x)gsub(" ","",x) )  
-  newdata = newdata[,colnames(newdata) %in% c("1",depVars)]
-  if( mod$activation.function=="tansig" ){
-    neurons = tanh( as.matrix(newdata) %*% t(mod$hidden.wts) )
-    preds = neurons %*% mod$output.wts
-  }
-  if( mod$activation.function=="purelin" ){
-    neurons = as.matrix(newdata) %*% t(mod$hidden.wts)
-    preds = neurons %*% mod$output.wts
-  }
-  if( mod$activation.function=="sigmoid" ){
-    neurons = 1/(1+exp(-as.matrix(newdata) %*% t(mod$hidden.wts)))
-    preds = neurons %*% mod$output.wts
-  }
-  if( mod$activation.function=="hardlim" ){
-    neurons = ifelse(as.matrix(newdata) %*% t(mod$hidden.wts)>0,1,0)
-    preds = neurons %*% mod$output.wts
-  }
-  return(preds)
+# Log( Order Book Imbalance ) for provided bids/offers
+for( lag in c(1:60*.01,7:60*.1,7:60,2:60*60 ) ){
+  d[,index] = load_lag_price(price[,c("Time","LogBookImb")], lags=lag)
+  cnames[index] = paste0("Lag_",lag,"_LogBookImb")
+  index = index + 1
 }
 
-#d: Dataset of interest.  Should contain all training and test observations!
-#cvGroup: Specify the cross-validation group number for the training data (1 to # of cv groups, typically 10).  -1=test data, 0=ignored.
-#indCol: The column of d containing the independent variable.
-#model: A string containing the model specification.  data arguments will be ignored, and the function used is required to have a formula argument.
-#pred.cols: Some algorithms support multiple predictions (multiple averaged models, for example).  pred.cols controls how many models should be estimated, and estimations are choosen in a meaningful way.  Defaults to 1 (or 10 if gbm or fit.glmnet)
-#Currently supported functions: fit.nn (defined above), neuralnet, gbm, randomForest, glm, lm, rpart, glmnet, pcr
-cvModel = function(d, cvGroup, indCol, model="neuralnet(Y ~ X1 + X2 + X3 + X4 + X5, hidden=4, err.fct='sse')", pred.cols=1+9*grepl("(^fit.glmnet|^gbm)",model) ){
-  ensem = data.frame( matrix(0, nrow=nrow(d), ncol=pred.cols ) )
-  #Set up the rownames of ensem to match d.  This makes inserting in predicted values much easier later:
-  rownames(ensem) = 1:nrow(d)
-  rownames(d) = 1:nrow(d)
-  
-  model = gsub("data=[A-Za-z0-9_.]*", "data=train", model )
-  model = gsub(" ","",model)
-  if(!grepl( "data=", model )) model = paste0(substr(model,1,nchar(model)-1),", data=train )")
-  
-  #Store the models, if desirable
-  mods = list()
-  
-  #Set up the model formula and rename the columns of d appropriately:
-  #Holdout each cv-group in turn:
-  for( i in sort(unique(cvGroup[cvGroup>0])) ){
-    train = d[!cvGroup %in% c(-1,i),]
-    predict = d[cvGroup %in% c(-1,i),-indCol]
-
-    #Evaluate the model
-    fit = eval( parse( text=model) )
-    
-    #Predict based on the model used:
-    if( grepl("^neuralnet", model) ){
-      #neuralnet prediction requires a dataframe with only the used variables in it:
-      depCols = gsub( ",.*", "", gsub(".*~", "", model ) )
-      depCols = strsplit(depCols, "+", fixed=T)[[1]]
-      depCols = sapply(depCols, function(x){gsub(" ","",x)} )
-      predict.temp = predict[,colnames(predict) %in% depCols]
-      preds = compute(fit, predict.temp)$net.result
-    }
-    if( grepl("^fit.nn", model) ){
-      preds = predict.nn(fit, newdata=predict)
-      mods[[length(mods)+1]] = fit
-    }
-    if( grepl("^gbm", model) ){
-      if(pred.cols==1) warning("Only generating one prediction for a model that allows many!")
-      #Exponentially space out the trees for prediction, but round to nearest integer and remove duplicates:
-      tree.list = unique( round( exp(seq(0,log(fit$n.trees),length.out=pred.cols)) ) )
-      preds = data.frame(predict(fit, newdata=predict, n.trees=tree.list))
-      colnames(ensem) = paste0("gbm_trees",tree.list)
-      #Remove extra columns in ensem, if applicable
-      ensem = ensem[,1:ncol(preds)]
-    }
-    if( grepl("(^randomForest|^nnet)", model) )
-      preds = data.frame(predict(fit, newdata=predict))
-    if( grepl("^([g]*lm|rpart)", model) ){
-      preds = data.frame(predict(fit, newdata=predict))
-      mods[[length(mods)+1]] = fit$coeff
-    }
-    if( grepl("^pcr", model) ){
-      #Prediction returns a 3-dimensional array (observations x prediction_type (always 1 here) x components).  Extract and return all components
-      preds = apply(predict(fit, newdata=predict, type="response"), 3, identity)
-      if( ncol(preds)!=ncol(ensem) ){
-        warning(paste0("Overwriting pred.cols to return all components: ",pred.cols,"->",ncol(preds)))
-        if(ncol(ensem)<ncol(preds)) ensem = data.frame( matrix(0, nrow=nrow(d), ncol=ncol(preds)) )
-        if(ncol(ensem)>ncol(preds)) ensem = ensem[,1:ncol(preds)]
-      }
-      colnames(ensem) = colnames(preds)
-      preds = data.frame(preds)
-    }
-    if( grepl("^fit.glmnet", model) ){
-      if(pred.cols==1) warning("Only generating one prediction for a model that allows many!")
-      preds = data.frame(predict(fit, newx=as.matrix(predict)))
-      col.index = round(seq(1,ncol(preds),length.out=pred.cols))
-      preds = preds[,col.index]
-      colnames(ensem) = paste0("glmnet_lambda",round(fit$lambda[col.index],4))
-    }
-    colnames(ensem) = gsub("\\.", "d", colnames(ensem))
-    rownames(preds) = rownames(predict)
-    
-    #Insert the predicted values for the cv group into the ensem data.frame.
-    pred.index = (1:nrow(ensem))[cvGroup==i]
-    ensem[pred.index,] = preds[rownames(preds) %in% pred.index,]
-    
-    #Insert the predicted values for the test group into the ensem data.frame, but divide by the number of cv-folds (since each fold has a diff. prediction)
-    test.index = (1:nrow(ensem))[cvGroup==-1]
-    ensem[test.index,] = ensem[test.index,] + preds[rownames(preds) %in% test.index,]/(length(unique(cvGroup))-1)
-    print(paste0("Model ",i,"/",length(unique(cvGroup[cvGroup>0]))," has finished"))
-  }
-  if(length(mods)==0) return(ensem)
-  return(list(ensemble=ensem, models=mods))
-}
-  
-#This function fits cross-validated models using the bigglm package.
-#ind_var_names: Names of variables to use in model
-#d: big.matrix object containing the data
-#cnames: column names for d
-#chunk.rows: How many rows should be processed at a time?  25,000 seems like an optimal choice based on a few tests.
-cvModel.bigglm = function(ind_var_names=c("MicroPrice","MicroPriceAdj","LogBookImb","LogBookImbInside","MicroPriceAdjExp")
-  ,d, cnames,chunk.rows=25000){
-  #Clean up ind_var_names
-  if(any(!c("MicroPriceAdj","LogBookImb","LogBookImbInside","MicroPriceAdjExp") %in% ind_var_names)){
-    print("Warning: Not including one/some of the base columns!")
-  }
-  #Reorder ind_var_names (sort based on cnames for easy prediction):
-  ind_var_names = ind_var_names[order( match(ind_var_names,cnames) )]
-  col.inx = cnames %in% c("PriceDiff1SecAhead","cvGroup",ind_var_names)
-  preds = rep(0,nrow(d))
-  
-  for( cvGroupNo in 1:10 ){
-    #Define function to read data:
-    read.d = function(reset){
-      if(reset){
-        skip.rows<<-0
-        return(NULL)
-      }
-      if(skip.rows>=nrow(d)-1) return(NULL)
-      row.inx = (skip.rows+1):min(skip.rows+chunk.rows,nrow(d))
-      out = data.frame( d[row.inx,col.inx] )
-      colnames(out) = cnames[col.inx]
-      skip.rows <<- skip.rows + chunk.rows
-      #Stop processing once you hit test data:
-      if(any(out$cvGroup==-1)) skip.rows<<-nrow(d)
-      return(out[!out$cvGroup %in% c(cvGroupNo,-1),])
-    }
-    
-    #Create the bigmatrix model:
-    form = as.formula( paste0( "PriceDiff1SecAhead ~", paste(ind_var_names,collapse="+") ) )
-    fit = bigglm( form, read.d )
-    
-    #Predict on the holdout group as well as the test group
-    preds[d[,6]==cvGroupNo] = cbind(1,d[d[,6]==cvGroupNo, cnames %in% ind_var_names]) %*%t(t(summary(fit)$mat[,1]))
-    preds[d[,6]==-1] = cbind(1,d[d[,6]==-1, cnames %in% ind_var_names]) %*%t(t(summary(fit)$mat[,1]))/10 +
-      preds[d[,6]==-1]
-  }
-  preds[is.na(preds)] = 0
-  
-  return(preds)
+# Log( Order Book Imbalance ) for just the inside bid and offer
+for( lag in c(1:60*.01,7:60*.1,7:60,2:60*60 ) ){
+  d[,index] = load_lag_price(price[,c("Time","LogBookImbInside")], lags=lag)
+  cnames[index] = paste0("Lag_",lag,"_LogBookImbInside")
+  index = index + 1
 }
 
-create.read.f = function(filename,chunk.rows=100){
-  f = function(reset=TRUE){
-    if(reset){
-      skip.rows<<-0
-      return(NULL)
-    }
-    d = read.csv(filename, nrow=chunk.rows, skip=skip.rows)
-    skip.rows <<- skip.rows + chunk.rows
-    colnames(d) = paste0("X",1:10)
-    if( nrow(d)==0 ) return(NULL)
-    return(d)
-  }
-  return(f)
+# Number of Units traded and Number of Units traded on SELL side
+for( lag in c(1:60,2:60*60) ){
+  trade_hist = load_lag_trades( price, orders, lag=lag )[,3:4]
+  d[,index] = trade_hist[,1]
+  d[,index+1] = trade_hist[,2]
+  cnames[index:(index+1)] = paste0("Lag_", lag, c("_Units","_UnitsSELL") )
+  index = index + 2
 }
 
-#d = matrix(rnorm(10000),nrow=1000)
-#d = data.frame(d)
-#write.csv(d, file="temp.csv", row.names=F)
-#f = create.read.f("temp.csv", chunk.rows=50)
-#f(T)
-#for( i in 1:21 ) print( nrow(f(F)) )
-#fit.big = bigglm( X1 ~ X2 + X3, data=read.d )
-#fit = glm(X1 ~ X2 + X3, data=d)
-#summary(fit.big)
-#summary(fit)
-
-#To bring in lagged times, use Rcpp (so you can loop efficiently):
-#prices (the input, must be a matrix) should be two columns: time (numeric, in seconds) and variable to lag.
-#Outputs shift_price, a matrix, which contains lagged values at 1s, 2s, 3s, 4s, 5s.
-#6 indicators:
-#i: Current row of matrix.  Take this microprice and impute it ahead 1s, 2s, 3s, 4s, 5s
-#secj, j=1:5: Index of row corresponding to j seconds ahead of ith row.  Increments up as i increments
-load_lag_price_cxx = cxxfunction(signature(prices="numeric", lags="numeric"), plugin="RcppArmadillo", body="
-  arma::mat price = Rcpp::as<arma::mat>(prices);
-  arma::mat lag = Rcpp::as<arma::mat>(lags);
-  int n = price.n_rows;
-  int m = lag.n_rows;
-  arma::mat shift_price(n,m);
-  int secArray [m];
-  for( int i=0; i<m; i++ ) secArray[i] = 1;
-  for( int i=0; i<n; i++ ){
-    for( int j=0; j<m; j++ ){
-      while(price(i,0) - price(secArray[j],0) > lag[j] && secArray[j] < n-1) secArray[j]++;
-      shift_price(i,j) = price(secArray[j],1);
-    }
-  }
-  return Rcpp::wrap(shift_price);"
-)
-
-load_lag_price = function(prices, lags){
-  if(is.data.frame(prices)) prices = as.matrix(prices)
-  if(!is.matrix(prices)) stop("Input must be a matrix")
-  if(ncol(prices)!=2) stop("Input has wrong number of columns.  Should be time, variable to lag.")
-  if(is.numeric(lags)) lags = matrix(lags)
-  if(!is.matrix(lags)) stop("Lags must be a list or a matrix!")
-  if(ncol(lags)!=1) stop("Lags must have only one column!")
-  out = load_lag_price_cxx(prices, lags)
-  for(i in 1:length(lags)) out[prices[,1]<lags[i],i] = NA
-  if( is.null(colnames(prices)[2]) ) colnames(prices)[2] = "Var"
-  colnames(out) = paste0("Lag_",lags,"_",colnames(prices)[2])
-  return(out)
-}
-
-#Check code works:
-#lags = load_lag_price( price[1:10000,c("Time","MicroPrice")], lags=1:10 )
-#lags = data.frame( price[1:10000,c("Time","MicroPrice")], lags)
-#toPlot = melt(lags, id.var="Time")
-#ggplot(toPlot[toPlot$Time<=120,], aes(x=Time, y=value, color=variable, group=variable) ) + geom_line()
-
-# prices has 1 column: time
-# orders has 4 columns: time, 0=BUY/1=SELL, price, units
-# output has 5 columns: # of trades in last Lag seconds, # of SELL trades, # of units traded, # of SELL units
-# Variable i keeps track of row of price
-# Variable iLag keeps track of Lag seconds back row of orders
-# Variable iCurr keeps track of first row of orders that has a time greater than price(i,0)
-load_lag_trades_cxx = cxxfunction(signature(prices="numeric", orders="numeric", lags="numeric"), plugin="RcppArmadillo", body="
-  arma::mat price = Rcpp::as<arma::mat>(prices);
-  arma::mat order = Rcpp::as<arma::mat>(orders);
-  int n = price.n_rows;
-  int m = order.n_rows;
-  double lag = Rcpp::as<double>(lags);
-  arma::mat output(n,4);
-  int iLag(0), iCurr(0);
-  for( int i=0; i<n; i++){
-    while( price(i,0) > order(iLag,0) + lag && iLag < m-1) iLag++; //iterate iLag until it's within Lag seconds of price's time
-    while( price(i,0) >= order(iCurr,0)  && iCurr < m-1 ) iCurr++;
-    output(i,0) = iCurr-iLag;
-    output(i,1) = 0;
-    output(i,2) = 0;
-    output(i,3) = 0;
-    for( int j=iLag; j<iCurr; j++){
-      output(i,1) = output(i,1) + order(j,1);
-      output(i,2) = output(i,2) + order(j,3);
-      output(i,3) = output(i,3) + order(j,3)*order(j,1);
-    }
-  }
-  return(wrap(output));
-"
-)
-
-load_lag_trades = function( price, orders, lag=60 ){
-  price_mat = as.matrix( price$Time )
-  orders_agg = ddply( orders, c("Time", "RestingSide", "TradePrice"), function(df)sum(df$TradeQuantity) )
-  colnames(orders_agg)[4] = "Units"
-  orders_agg$RestingSide = as.numeric( orders_agg$RestingSide=="SELL")
-  output = load_lag_trades_cxx(prices=matrix(price$Time), orders=as.matrix(orders_agg), lags=lag )
-  output = data.frame(output)
-  colnames(output) = paste0(c("Trades_Lag_", "SELLs_Lag_", "Units_Lag_", "Units_SELL_Lag_"), lag, "s" )
-  return(output)
-}
-
-#Sample run of neural network code:
-  #d = data.frame( matrix(rnorm(5000),ncol=5) ); colnames(d) = paste0("X",1:5); d$Y = as.matrix(d)%*%runif(5) + rnorm(100)
-  #mod = fit.nn( Y ~ X1 + X2 + X3, data=d, hidden=8 )
-  #predict.nn( mod, d[,1:3] )
-
-#Use cvModel function:
-  #outNn = cvModel( d, cvGroup=c(rep(-1,100), rep(1:10,each=90)), indCol=6, model="fit.nn(Y~X1+X2+X3+X4+X5, hidden=8, report=F)" )
-  #outRf = cvModel( d, cvGroup=c(rep(-1,100), rep(1:10,each=90)), indCol=6, model="randomForest(Y~., ntree=10)" )
-  #outGlm = cvModel( d, cvGroup=c(rep(-1,100), rep(1:10,each=90)), indCol=6, model="glm(Y~X1+X2+X3+X4+X5)" )
-  #outGlmnet = cvModel( d, cvGroup=c(rep(-1,100), rep(1:10,each=90)), indCol=6, model="fit.glmnet(Y~X1+X2+X3+X4+X5)" )
-  #outPcr = cvModel( d, cvGroup=c(rep(-1,100), rep(1:10,each=90)), indCol=6, model="pcr(Y ~ ., ncomp=2 )" )
-  #outTree = cvModel( d, cvGroup=c(rep(-1,100), rep(1:10,each=90)), indCol=6, model="rpart(Y ~ . )" )
-  #outGbm = cvModel( d, cvGroup=c(rep(-1,100), rep(1:10,each=90)), indCol=6, model="gbm(Y ~ ., n.trees=10, distribution='gaussian' )", pred.cols=4 )
-
-#Measure Performance:
-  #sum( (outGlm-d$Y)[cvGroup==-1,1]^2 )
-  #sum( (outRf-d$Y)[cvGroup==-1,1]^2 )
-  #sum( (outTree-d$Y)[cvGroup==-1,1]^2 )
-  #sum( (outNn-d$Y)[cvGroup==-1,1]^2 )
-  #for( i in 1:ncol(outGbm) ) print(sum( (outGbm[,i]-d$Y)[cvGroup==-1,1]^2 ))
-  #for( i in 1:ncol(outGlmnet) ) print(sum( (outGlmnet[,i]-d$Y)[cvGroup==-1,1]^2 ))
-  #for( i in 1:ncol(outPcr) ) print(sum( (outPcr[,i]-d$Y)[cvGroup==-1,1]^2 ))
+write.csv(cnames, file="cnames.csv", row.names=F)
