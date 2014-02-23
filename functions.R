@@ -252,7 +252,7 @@ cvModel.bigglm = function(ind_var_names=c("MicroPrice","MicroPriceAdj","LogBookI
   }
   #Reorder ind_var_names (sort based on cnames for easy prediction):
   ind_var_names = ind_var_names[order( match(ind_var_names,cnames) )]
-  col.inx = cnames %in% c("PriceDiff1SecAhead","cvGroup",ind_var_names)
+  col.inx = cnames %in% c(dep_var,"cvGroup",ind_var_names)
   preds = rep(0,nrow(d))
   
   for( cvGroupNo in 1:10 ){
