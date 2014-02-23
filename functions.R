@@ -245,7 +245,7 @@ cvModel = function(d, cvGroup, indCol, model="neuralnet(Y ~ X1 + X2 + X3 + X4 + 
 #cnames: column names for d
 #chunk.rows: How many rows should be processed at a time?  25,000 seems like an optimal choice based on a few tests.
 cvModel.bigglm = function(ind_var_names=c("MicroPrice","MicroPriceAdj","LogBookImb","LogBookImbInside","MicroPriceAdjExp")
-  ,d, cnames,chunk.rows=25000){
+  ,d, cnames,chunk.rows=25000, dep_var="PriceDiff1SecAhead"){
   #Clean up ind_var_names
   if(any(!c("MicroPriceAdj","LogBookImb","LogBookImbInside","MicroPriceAdjExp") %in% ind_var_names)){
     print("Warning: Not including one/some of the base columns!")
@@ -273,7 +273,7 @@ cvModel.bigglm = function(ind_var_names=c("MicroPrice","MicroPriceAdj","LogBookI
     }
     
     #Create the bigmatrix model:
-    form = as.formula( paste0( "PriceDiff1SecAhead ~", paste(ind_var_names,collapse="+") ) )
+    form = as.formula( paste0( dep_var, "~", paste(ind_var_names,collapse="+") ) )
     fit = bigglm( form, read.d )
     
     #Predict on the holdout group as well as the test group
