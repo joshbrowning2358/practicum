@@ -244,8 +244,8 @@ cvModel = function(d, cvGroup, indCol, model="neuralnet(Y ~ X1 + X2 + X3 + X4 + 
 #d: big.matrix object containing the data
 #cnames: column names for d
 #chunk.rows: How many rows should be processed at a time?  25,000 seems like an optimal choice based on a few tests.
-cvModel.bigglm = function(ind_var_names=c("MicroPrice","MicroPriceAdj","LogBookImb","LogBookImbInside","MicroPriceAdjExp")
-  ,d, cnames,chunk.rows=25000, dep_var="PriceDiff1SecAhead"){
+cvModel.bigglm = function(ind_var_names, d, cnames, chunk.rows=25000
+    ,dep_var="PriceDiff1SecAhead", filter=rep(T,nrow(d))){
   #Clean up ind_var_names
   if(any(!c("MicroPriceAdj","LogBookImb","LogBookImbInside","MicroPriceAdjExp") %in% ind_var_names)){
     print("Warning: Not including one/some of the base columns!")
@@ -262,14 +262,18 @@ cvModel.bigglm = function(ind_var_names=c("MicroPrice","MicroPriceAdj","LogBookI
         skip.rows<<-0
         return(NULL)
       }
-      if(skip.rows>=nrow(d)-1) return(NULL)
       row.inx = (skip.rows+1):min(skip.rows+chunk.rows,nrow(d))
+      while( sum(filter[row.inx])==0 & skip.rows < nrow(d)-1 ){
+        skip.rows <<- skip.rows + chunk.rows
+        row.inx = (skip.rows+1):min(skip.rows+chunk.rows,nrow(d))
+      }
+      if(skip.rows>=nrow(d)-1) return(NULL)
       out = data.frame( d[row.inx,col.inx] )
       colnames(out) = cnames[col.inx]
       skip.rows <<- skip.rows + chunk.rows
       #Stop processing once you hit test data:
       if(any(out$cvGroup==-1)) skip.rows<<-nrow(d)
-      return(out[!out$cvGroup %in% c(cvGroupNo,-1),])
+      return(out[!out$cvGroup %in% c(cvGroupNo,-1) & filter[row.inx],])
     }
     
     #Create the bigmatrix model:
