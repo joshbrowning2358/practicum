@@ -21,18 +21,8 @@ eval_preds = function( preds, price_diff=d[,5], price=d[,2], time=d[,1] ){
   if( any(is.na(preds)) ) stop("No NAs allowed in predictions!  Replace with MicroPrice at that time.")
   eval.rows = c(0,diff( price ))!=0
   eval.rows[is.na(eval.rows)] = FALSE
-#  day = ifelse( time < 24*60*60, "Monday"
-#       ,ifelse( time < 48*60*60, "Tuesday"
-#       ,ifelse( time < 72*60*60, "Wednesday"
-#       ,ifelse( time < 96*60*60, "Thursday"
-#       ,ifelse( time < 120*60*60, "Friday", "Error" ) ) ) ) )
-#  if( any(day %in% c("Error","Wednesday")) ) stop("Bad times: Wednesday or out of range")
   d.eval = data.frame( err=preds-price_diff, time, price, price_diff )
   d.eval = d.eval[eval.rows,]
-#  d.eval$day = factor(d.eval$day, levels=c("Monday","Tuesday","Thursday","Friday"))
-#  ddply( d.eval, "day", function(x){
-#    print(paste("Sum of Squares for day",x$day[1],"is",round(sum(x$err^2)/nrow(x),4)))
-#  } )
 
   #Aggregate performance over time:
   d.eval$time = floor( d.eval$time/15/60 )*15*60
@@ -41,11 +31,6 @@ eval_preds = function( preds, price_diff=d[,5], price=d[,2], time=d[,1] ){
     data.frame(#Base.MSE=sum(df$price_diff^2)/nrow(df),
       Model.MSE = SS/nrow(df) )
   } )
-  #d.agg.t$Improvement = d.agg.t$Model.MSE / d.agg.t$Base.MSE
-  #toPlot = melt(d.agg.t, id.vars="time", measure.vars=c("Improvement","Base.MSE"))
-  #baseline = data.frame(time=c(0,max(d.agg.t$time)), value=1, variable="Improvement")
-  #print( ggplot(toPlot, aes(x=time, y=value) ) + geom_point() + facet_wrap(~variable, scales="free") +
-  #  geom_line(data=baseline, color="red", linetype=2) ) 
 
   #Aggregate performance over actual MicroPrice:
   d.eval$price = floor( d.eval$price*100 )/100
@@ -54,15 +39,36 @@ eval_preds = function( preds, price_diff=d[,5], price=d[,2], time=d[,1] ){
     data.frame(#Base.MSE=sum(df$price_diff^2)/nrow(df),
       Model.MSE = SS/nrow(df) )
   } )
-  #d.agg.p$Improvement = d.agg.p$Model.MSE / d.agg.p$Base.MSE
-  #toPlot = melt(d.agg.p, id.vars="price", measure.vars=c("Improvement","Base.MSE"))
-  #baseline = data.frame(price=c(min(d.agg.p$price),max(d.agg.p$price)), value=1, variable="Improvement")
-  #print( ggplot(toPlot, aes(x=price, y=value) ) + geom_point() + geom_smooth() +
-  #  facet_wrap(~variable, scales="free") +
-  #  geom_line(data=baseline, color="red", linetype=2) )
   
   #return performance aggregated by time and by current price
   return( list( d.agg.t, d.agg.p ) )
+}
+
+eval_print = function( preds, price_diff=d[,5], price=d[,2], time=d[,1] ){
+  if( any(is.na(preds)) ) stop("No NAs allowed in predictions!  Replace with MicroPrice at that time.")
+  eval.rows = c(0,diff( price ))!=0
+  eval.rows[is.na(eval.rows)] = FALSE
+  d.eval = data.frame( err=preds-price_diff, time, price, price_diff )
+  d.eval = d.eval[eval.rows,]
+  d.eval$day = ifelse( d.eval$time < 24*60*60, "Monday"
+       ,ifelse( d.eval$time < 48*60*60, "Tuesday"
+       ,ifelse( d.eval$time < 72*60*60, "Wednesday"
+       ,ifelse( d.eval$time < 96*60*60, "Thursday"
+       ,ifelse( d.eval$time < 120*60*60, "Friday", "Error" ) ) ) ) )
+  if( any(d.eval$day %in% c("Error","Wednesday")) ) stop("Bad times: Wednesday or out of range")
+  d.eval$day = factor(d.eval$day, levels=c("Monday","Tuesday","Thursday","Friday"))
+  out = ddply( d.eval, "day", function(x){
+    d = data.frame(MSE.Model=round(sum(x$err^2)/nrow(x),4), MSE.Pers=round(sum(x$price_diff^2)/nrow(x),4))
+    d$Ratio = d[,1]/d[,2]
+    return(d)
+  } )
+  d.eval$day = ifelse(d.eval$day %in% c("Thursday", "Friday"), "Thu-Fri", "Mon-Tue")
+  out = rbind( out, ddply( d.eval, "day", function(x){
+    d = data.frame(MSE.Model=round(sum(x$err^2)/nrow(x),4), MSE.Pers=round(sum(x$price_diff^2)/nrow(x),4))
+    d$Ratio = d[,1]/d[,2]
+    return(d)
+  } ) )
+  print(out)
 }
 
 #form: specify the model formula, i.e. Y ~ X1 + X2 + X3.  Note that "." notation is supported.
