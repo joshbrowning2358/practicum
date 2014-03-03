@@ -429,3 +429,163 @@ load_lag_trades = function( price, orders, lag=60 ){
   #for( i in 1:ncol(outGbm) ) print(sum( (outGbm[,i]-d$Y)[cvGroup==-1,1]^2 ))
   #for( i in 1:ncol(outGlmnet) ) print(sum( (outGlmnet[,i]-d$Y)[cvGroup==-1,1]^2 ))
   #for( i in 1:ncol(outPcr) ) print(sum( (outPcr[,i]-d$Y)[cvGroup==-1,1]^2 ))
+
+predict.AMORE = function(net, newdata){
+  nodes = net$net$layers
+  if( ncol(newdata)!=length(nodes[[1]]) ) stop("Incorrect number of columns")
+  curr.neur = 1
+  curr.node = as.matrix(newdata)
+  for( i in 2:length(nodes) ){
+    new.node = matrix(0,nrow=nrow(newdata),ncol=0)
+    for( j in nodes[[i]]){
+      new.node = cbind( new.node,
+        net$net$neurons[[curr.neur]]$f0( curr.node%*%net$net$neurons[[curr.neur]]$weights )
+      )
+      curr.neur = curr.neur + 1
+    }
+    curr.node = new.node
+  }
+  return( curr.node )
+}
+
+#Run multiple rounds of simulations.  If one network is much slower or faster, tune it a bit for comparable speeds.  We want the best prediction with equal times.
+sim_neural_net = function(type, n){
+  if(type=="half-quadratic"){
+    d = data.frame( x = runif(n*2, min=0, max=3) )
+    d$y = d$x^2 + rnorm(n*2)
+    d$train = rep(c(T,F), each=n)
+  }
+  if(type=="quadratic"){
+    d = data.frame( x = runif(n*2, min=-3, max=3) )
+    d$y = d$x^2 + rnorm(n*2)
+    d$train = rep(c(T,F), each=n)
+  }
+  if(type=="sin"){
+    d = data.frame( x = runif(n*2, min=-2*pi, max=2*pi) )
+    d$y = sin(d$x) + rnorm(n*2)
+    d$train = rep(c(T,F), each=n)
+  }
+  if(type=="linear"){
+    d = data.frame( x = runif(n*2, min=-3, max=3) )
+    d$y = d$x + rnorm(n*2)
+    d$train = rep(c(T,F), each=n)
+  }
+  
+  print("Starting nnet:")
+  #nnet
+  Start = Sys.time()
+  fit = try( nnet( d$x[d$train], d$y[d$train], size=6, linout=T, maxit=100, trace=F ) )
+  if( !is(fit)=="try-error" ){
+    d$preds = predict( fit, newdata=d[,"x",drop=F] )
+    out = data.frame(t = as.numeric(Sys.time() - Start))
+    out$MSE.Test = 1/sum(!d$train)*t(as.numeric(!d$train)*(d$preds-d$y))%*%(d$preds-d$y)
+    out$MSE.Train = 1/sum(!d$train)*t(as.numeric(d$train)*(d$preds-d$y))%*%(d$preds-d$y)
+    out$mod = "nnet"
+  } else {
+    out = data.frame(t=NA, MSE.Test=NA, MSE.Train=NA, mod="nnet")
+  }
+  out$mod = as.character( out$mod )
+
+  print("Starting neuralnet:")
+  #neuralnet
+  Start = Sys.time()
+  fit = try( neuralnet( y ~ x, data=d[d$train,], hidden=6, threshold=.1 ) )
+  if( !is(fit)=="try-error" ){
+    preds = try( compute( fit, covariate=d[,"x",drop=F] )$net.result )
+    if( !is(preds)=="try-error" ){
+      d$preds = preds
+      out.new = data.frame(t = as.numeric(Sys.time() - Start))
+      out.new$MSE.Test = 1/sum(!d$train)*t(as.numeric(!d$train)*(d$preds-d$y))%*%(d$preds-d$y)
+      out.new$MSE.Train = 1/sum(!d$train)*t(as.numeric(d$train)*(d$preds-d$y))%*%(d$preds-d$y)
+      out.new$mod = "neuralnet"
+      out = rbind(out, out.new)
+    } else {
+    out = rbind(out,c(NA,NA,NA,"neuralnet"))
+    }
+  } else {
+    out = rbind(out,c(NA,NA,NA,"neuralnet"))
+  }
+  
+  print("Starting mlp:")
+  #RSNNS mlp
+  Start = Sys.time()
+  fit = try( mlp( d$x[d$train], d$y[d$train], size=c(6), linOut=T ) )
+  if( !is(fit)=="try-error" ){
+    d$preds = predict( fit, newdata=d[,"x",drop=F] )
+    out.new = data.frame(t = as.numeric(Sys.time() - Start))
+    out.new$MSE.Test = 1/sum(!d$train)*t(as.numeric(!d$train)*(d$preds-d$y))%*%(d$preds-d$y)
+    out.new$MSE.Train = 1/sum(!d$train)*t(as.numeric(d$train)*(d$preds-d$y))%*%(d$preds-d$y)
+    out.new$mod = "RSNNS: mlp"
+    out = rbind(out, out.new)
+  } else {
+    out = rbind(out,c(NA,NA,NA,"RNNS: mlp"))
+  }
+  
+  print("Starting rbf:")
+  #RSNNS rbf
+  Start = Sys.time()
+  fit = try( rbf( d$x[d$train], d$y[d$train], size=6 ) )
+  if( !is(fit)=="try-error" ){
+    d$preds = predict( fit, newdata=d[,"x",drop=F] )
+    out.new = data.frame(t = as.numeric(Sys.time() - Start))
+    out.new$MSE.Test = 1/sum(!d$train)*t(as.numeric(!d$train)*(d$preds-d$y))%*%(d$preds-d$y)
+    out.new$MSE.Train = 1/sum(!d$train)*t(as.numeric(d$train)*(d$preds-d$y))%*%(d$preds-d$y)
+    out.new$mod = "RSNNS: rbf"
+    out = rbind(out, out.new)
+  } else {
+    out = rbind(out,c(NA,NA,NA,"RNNS: rbf"))
+  }
+
+  print("Starting elman:")
+  #RSNNS elman
+  Start = Sys.time()
+  fit = try( elman( d$x[d$train], d$y[d$train], size=6 ) )
+  if( !is(fit)=="try-error" ){
+    d$preds = predict( fit, newdata=d[,"x",drop=F])
+    out.new = data.frame(t = as.numeric(Sys.time() - Start))
+    out.new$MSE.Test = 1/sum(!d$train)*t(as.numeric(!d$train)*(d$preds-d$y))%*%(d$preds-d$y)
+    out.new$MSE.Train = 1/sum(!d$train)*t(as.numeric(d$train)*(d$preds-d$y))%*%(d$preds-d$y)
+    out.new$mod = "RSNNS: elman"
+    out = rbind(out, out.new)
+  } else {
+    out = rbind(out,c(NA,NA,NA,"RNNS: elman"))
+  }
+  
+  print("Starting jordan:")
+  #RSNNS jordan
+  Start = Sys.time()
+  fit = try( jordan( d$x[d$train], d$y[d$train], size=6 ) )
+  if( !is(fit)=="try-error" ){
+    d$preds = predict( fit, newdata=d[,"x",drop=F])
+    out.new = data.frame(t = as.numeric(Sys.time() - Start))
+    out.new$MSE.Test = 1/sum(!d$train)*t(as.numeric(!d$train)*(d$preds-d$y))%*%(d$preds-d$y)
+    out.new$MSE.Train = 1/sum(!d$train)*t(as.numeric(d$train)*(d$preds-d$y))%*%(d$preds-d$y)
+    out.new$mod = "RSNNS: jordan"
+    out = rbind(out, out.new)
+  } else {
+    out = rbind(out,c(NA,NA,NA,"RNNS: jordan"))
+  }
+
+  print("Starting AMORE:")
+  #AMORE
+  Start = Sys.time()
+  net = newff( c(2,6,1), learning.rate.global=1e-2, momentum.global=.5
+    ,error.criterium="LMS", Stao=NA, hidden.layer="tansig"
+    ,output.layer="purelin", method="ADAPTgdwm" )
+  fit = try( AMORE::train( net, as.matrix(cbind(1,d[d$train,"x",drop=F])), as.matrix(d[d$train,"y",drop=F])
+    ,error.criterium="LMS", show.step=10, n.shows=10, report=F ) )
+  if( !is(fit)=="try-error" ){
+    d$preds = predict.AMORE( fit, newdata=cbind(1,d[,"x",drop=F]) )
+    out.new = data.frame(t = as.numeric(Sys.time() - Start))
+    out.new$MSE.Test = 1/sum(!d$train)*t(as.numeric(!d$train)*(d$preds-d$y))%*%(d$preds-d$y)
+    out.new$MSE.Train = 1/sum(!d$train)*t(as.numeric(d$train)*(d$preds-d$y))%*%(d$preds-d$y)
+    out.new$mod = "AMORE"
+    out = rbind(out, out.new)
+  } else {
+    out = rbind(out,c(NA,NA,NA,"AMORE"))
+  }
+  
+  out$type = type
+  out$n = n
+  return(out)
+}
