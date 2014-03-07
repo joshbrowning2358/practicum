@@ -589,3 +589,40 @@ sim_neural_net = function(type, n){
   out$n = n
   return(out)
 }
+
+sim_nnet = function(type, n, hidden, input){
+  if(type=="half-quadratic"){
+    d = data.frame(matrix(runif(n*2*input, min=0, max=3), ncol=input ))
+    d$y = apply( d*d, 1, sum ) + rnorm(n*2)
+    d$train = rep(c(T,F), each=n)
+  }
+  if(type=="quadratic"){
+    d = data.frame(matrix(runif(n*2*input, min=-3, max=3), ncol=input ))
+    d$y = apply( d*d, 1, sum ) + rnorm(n*2)
+    d$train = rep(c(T,F), each=n)
+  }
+  if(type=="linear"){
+    d = data.frame(matrix(runif(n*2*input, min=-3, max=3), ncol=input ))
+    d$y = apply( d, 1, sum ) + rnorm(n*2)
+    d$train = rep(c(T,F), each=n)
+  }
+  
+  #nnet
+  Start = Sys.time()
+  fit = try( nnet( d[d$train,1:input], d$y[d$train], size=hidden, linout=T, maxit=100, trace=F ) )
+  if( !is(fit)=="try-error" ){
+    d$preds = predict( fit, newdata=d[,1:input,drop=F] )
+    out = data.frame(t = as.numeric(Sys.time() - Start))
+    out$MSE.Test = 1/sum(!d$train)*t(as.numeric(!d$train)*(d$preds-d$y))%*%(d$preds-d$y)
+    out$MSE.Train = 1/sum(!d$train)*t(as.numeric(d$train)*(d$preds-d$y))%*%(d$preds-d$y)
+    out$mod = "nnet"
+  } else {
+    out = data.frame(t=NA, MSE.Test=NA, MSE.Train=NA, mod="nnet")
+  }
+
+  out$hidden = hidden
+  out$input = input
+  out$type = type
+  out$n = n
+  return(out)
+}
