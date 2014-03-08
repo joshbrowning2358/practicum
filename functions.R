@@ -45,7 +45,10 @@ eval_preds = function( preds, price_diff=d[,5], price=d[,2], time=d[,1] ){
 }
 
 eval_print = function( preds, price_diff=d[,5], price=d[,2], time=d[,1] ){
-  if( any(is.na(preds)) ) stop("No NAs allowed in predictions!  Replace with MicroPrice at that time.")
+  if( any(is.na(preds)) ){
+    warning(paste0("No NAs allowed in predictions!  ",sum(is.na(preds))," NA's replaced with MicroPrice at that time."))
+    preds[is.na(preds)] = price[is.na(preds)]
+  }
   eval.rows = c(0,diff( price ))!=0
   eval.rows[is.na(eval.rows)] = FALSE
   d.eval = data.frame( err=preds-price_diff, time, price, price_diff )
@@ -58,16 +61,17 @@ eval_print = function( preds, price_diff=d[,5], price=d[,2], time=d[,1] ){
   if( any(d.eval$day %in% c("Error","Wednesday")) ) stop("Bad times: Wednesday or out of range")
   d.eval$day = factor(d.eval$day, levels=c("Monday","Tuesday","Thursday","Friday"))
   out = ddply( d.eval, "day", function(x){
-    d = data.frame(MSE.Model=round(sum(x$err^2)/nrow(x),4), MSE.Pers=round(sum(x$price_diff^2)/nrow(x),4))
+    d = data.frame(MSE.Model=sum(x$err^2)/nrow(x), MSE.Pers=sum(x$price_diff^2)/nrow(x))
     d$Ratio = d[,1]/d[,2]
     return(d)
   } )
   d.eval$day = ifelse(d.eval$day %in% c("Thursday", "Friday"), "Thu-Fri", "Mon-Tue")
   out = rbind( out, ddply( d.eval, "day", function(x){
-    d = data.frame(MSE.Model=round(sum(x$err^2)/nrow(x),4), MSE.Pers=round(sum(x$price_diff^2)/nrow(x),4))
+    d = data.frame(MSE.Model=sum(x$err^2)/nrow(x), MSE.Pers=sum(x$price_diff^2)/nrow(x))
     d$Ratio = d[,1]/d[,2]
     return(d)
   } ) )
+  out[,2:4] = round(out[,2:4])
   print(out)
 }
 
