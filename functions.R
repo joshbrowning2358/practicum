@@ -71,7 +71,7 @@ eval_print = function( preds, price_diff=d[,5], price=d[,2], time=d[,1] ){
     d$Ratio = d[,1]/d[,2]
     return(d)
   } ) )
-  out[,2:4] = round(out[,2:4])
+  out[,2:4] = round(out[,2:4],4)
   print(out)
 }
 
