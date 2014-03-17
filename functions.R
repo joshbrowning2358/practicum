@@ -18,7 +18,10 @@ library(bigmemory)
 library(sqldf)
 
 eval_preds = function( preds, price_diff=d[,5], price=d[,2], time=d[,1] ){
-  if( any(is.na(preds)) ) stop("No NAs allowed in predictions!  Replace with MicroPrice at that time.")
+  if( any(is.na(preds)) ){
+    warning(paste0("No NAs allowed in predictions!  ",sum(is.na(preds))," NA's replaced with MicroPrice at that time."))
+    preds[is.na(preds)] = price[is.na(preds)]
+  }
   eval.rows = c(0,diff( price ))!=0
   eval.rows[is.na(eval.rows)] = FALSE
   d.eval = data.frame( err=preds-price_diff, time, price, price_diff )
