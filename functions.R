@@ -43,8 +43,10 @@ eval_preds = function( preds, price_diff=d[,5], price=d[,2], time=d[,1] ){
       Model.MSE = SS/nrow(df) )
   } )
   
+  d.agg.tot = sum(d.eval$err^2)/nrow(d.eval)
+  
   #return performance aggregated by time and by current price
-  return( list( d.agg.t, d.agg.p ) )
+  return( list( d.agg.tot, d.agg.t, d.agg.p ) )
 }
 
 eval_print = function( preds, price_diff=d[,5], price=d[,2], time=d[,1] ){
