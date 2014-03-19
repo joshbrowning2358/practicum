@@ -36,7 +36,7 @@ ggsave("Neural_Package_Times.png",
     geom_smooth(method="lm", formula=as.formula(y ~ exp(x) + 0), se=T) +
     scale_x_log10() + facet_wrap( ~ type ) +
     labs(x="Sample Size", y="Time (Minutes)", color="Package")
-  ,width=10, height=10, dpi=400 )
+  ,width=7, height=7, dpi=400 )
 results_new = results[results$mod!="neuralnet",]
 
 #MSE.Test
@@ -45,13 +45,13 @@ ggsave("Neural_Package_Test_MSE.png",
     #geom_smooth(method="lm", formula=as.formula(y ~ exp(x) + 0), se=T) +
     scale_x_log10() + facet_wrap( ~ type ) + scale_y_log10()
     labs(x="Sample Size", y="MSE on test data", color="Package")
-  ,width=10, height=10, dpi=400 )
+  ,width=7, height=7, dpi=400 )
 ggsave("Neural_Package_Test_MSE_Smoothed.png",
   ggplot(results, aes(x=n, y=MSE.Test, color=mod) ) +
     geom_smooth(se=F) +
     scale_x_log10() + facet_wrap( ~ type ) + scale_y_log10() +
     labs(x="Sample Size", y="MSE on test data", color="Package")
-  ,width=10, height=10, dpi=400 )
+  ,width=7, height=7, dpi=400 )
 results_new = results[results$mod!="RSNNS: rbf",]
 
 #MSE.Test ~ MSE.Train
@@ -59,7 +59,7 @@ ggsave("Neural_Packages_MSE_test_vs_train.png",
   ggplot( results_new[results_new$n == round(10^4.5) & results_new$mod!="AMORE" & !is.na(results_new$MSE.Test),], aes(x=MSE.Train, y=MSE.Test, color=mod, group=mod) ) +
     geom_point() + facet_wrap( ~ type, scale="free" ) + geom_density2d() +
     labs(x="MSE on training data", y="MSE on test data", color="Package")
-  ,width=10, height=10, dpi=400 )
+  ,width=7, height=7, dpi=400 )
 ggplot( results_new[results_new$n == round(10^4.5) & !is.na(results_new$MSE.Test),], aes(x=MSE.Train, y=MSE.Test, color=mod, group=mod) ) +
   geom_point() + facet_wrap( ~ type, scale="free" ) + geom_density2d()
 
@@ -96,35 +96,43 @@ results2 = read.csv(file="nnet_output.csv")
 #results2 = temp
 
 #Time:
-results2$input = paste("Input:", results2$input)
+results2$input = factor(paste("Input Nodes:", results2$input), levels=paste("Input Nodes:",1:10))
 ggsave("nnet_time_results.png",
   ggplot(results2, aes(x=n, y=t, color=hidden) ) + geom_point() +
     scale_x_log10() + facet_wrap( ~ input ) + scale_y_log10() +
     labs(x="Sample Size", y="Time", color="Hidden Nodes") +
     theme( axis.text.x = element_text(angle=90, vjust=.5) )
-  ,width=10, height=10, dpi=400 )
-results2$input = as.numeric(gsub("Input: ","",results2$input))
+  ,width=7, height=7, dpi=400 )
+results2$input = as.numeric(gsub("Input Nodes: ","",as.character(results2$input)))
 
 #MSE:
-results2$input = paste("Input:", results2$input)
+results2$input = factor(paste("Input Nodes:", results2$input), levels=paste("Input Nodes:",1:10))
 ggsave("nnet_MSE_test_results.png",
   ggplot(results2, aes(x=n, y=MSE.Test, color=hidden) ) + geom_point() +
     scale_x_log10() + facet_wrap( ~ input ) + scale_y_log10() + geom_smooth(se=F) +
     theme(axis.text.x=element_text(angle=90, vjust=.5)) +
     labs(x="Sample Size", y="MSE on Test Set", color="Hidden Nodes")
-  ,width=10, height=10, dpi=400 )
-results2$input = as.numeric(gsub("Input: ","",results2$input))
+  ,width=7, height=7, dpi=400 )
+results2$input = as.numeric(gsub("Input Nodes: ","",as.character(results2$input)))
 
 ggplot(results2, aes(x=n, y=MSE.Test, color=input) ) + geom_point() +
   scale_color_continuous() + facet_wrap( ~ hidden ) + scale_y_log10() + scale_x_log10()
   geom_smooth(se=F)
+
+results2$type = ifelse(results2$type==1,"Half-Quadratic", ifelse(results2$type==2,"Linear","Quadratic"))
+ggsave("nnet_smoothed_mse_vs_type.png",
+  ggplot( results2, aes(x=n, y=MSE.Test, color=as.factor(type), group=as.factor(type)) ) +
+    geom_smooth() + scale_x_log10(labels=comma) + scale_y_log10(breaks=c(1,10,100,1000)) + geom_point() +
+    labs(x="Sample Size", y="MSE on Test data", color="")
+  ,width=7, height=5, dpi=400)
+
 
 #Test vs Train
 ggsave("MSE_Test_vs_Train_All.png",
   ggplot(results2, aes(x=MSE.Train, y=MSE.Test, color=n) ) +
     geom_abline(intercept=0,slope=1, color="red", linetype=2) +
     geom_point() + scale_x_log10() + scale_y_log10() + scale_color_continuous(trans="log10")
-  ,width=10, height=10, dpi=400 )
+  ,width=7, height=7, dpi=400 )
 ggplot(results2[results2$n>=100000,], aes(x=MSE.Train, y=MSE.Test, color=n) ) +
   geom_abline(intercept=0,slope=1, color="red", linetype=2) +
   geom_point() + scale_color_continuous(trans="log10")
@@ -202,8 +210,8 @@ write.csv(file="fit.nn60.pred.full.csv", fit.nn60.pred.full, row.names=F)
 
 fit.nn.pred = read.csv(file="fit.nn.pred.csv")
 fit.nn60.pred = read.csv(file="fit.nn60.pred.csv")
-fit.nn.pred.full = read.csv(file="fit.nn.pred.csv")
-fit.nn60.pred.full = read.csv(file="fit.nn60.pred.csv")
+fit.nn.pred.full = read.csv(file="fit.nn.pred.full.csv")
+fit.nn60.pred.full = read.csv(file="fit.nn60.pred.full.csv")
 
 perf = data.frame(Model="GLM",Hidden=NA,Perf=eval_preds( fit.glm.pred )[[1]])
 perf$Model = as.character(perf$Model)
@@ -220,20 +228,22 @@ for(i in 1:ncol(fit.nn.pred) )
 for(i in 1:ncol(fit.nn.pred.full) )
   perf60 = rbind(perf60,c("nnet conv",c(2,3,4,6,8,10,15,20)[i],eval_preds( c(fit.nn60.pred.full[,i],NA), price_diff=d[,4] )[[1]]))
 write.csv(perf, "perf.csv")
-write.csv(perf, "perf60.csv")
+write.csv(perf60, "perf60.csv")
+perf = read.csv("perf.csv")
+perf60 = read.csv("perf60.csv")
 
 pers = data.frame(Model="Persistence", Hidden=c(0,20), Perf=perf$Perf[perf$Model=="Persistence"])
 glmPlot = data.frame(Model="GLM", Hidden=c(0,20), Perf=perf$Perf[perf$Model=="GLM"])
 ggsave("performance_of_1sec_nnet.png",
   ggplot( perf[perf$Model %in% c("nnet", "nnet conv"),], aes(x=Hidden, y=Perf, color=Model) ) +
-    geom_point() + geom_line(data=glmPlot) + geom_line(data=pers) +
-    labs(x="Hidden Nodes", y="MSE on test set")
-  ,width=10, height=10, dpi=400 )
+    geom_line() + geom_line(data=glmPlot) + geom_line(data=pers) +
+    labs(x="Hidden Nodes", y="MSE on test set (1s)")
+  ,width=5, height=4, dpi=400 )
 
 pers = data.frame(Model="Persistence", Hidden=c(0,20), Perf=perf60$Perf[perf60$Model=="Persistence"])
 glmPlot = data.frame(Model="GLM", Hidden=c(0,20), Perf=perf60$Perf[perf60$Model=="GLM"])
 ggsave("performance_of_60sec_nnet.png",
-  ggplot( perf60[perf60$Model %in% c("nnet", "nnet conv"),], aes(x=Hidden, y=Perf, color=Model) ) +
-    geom_point() + geom_line(data=glmPlot) + geom_line(data=pers) +
-    labs(x="Hidden Nodes", y="MSE on test set")
-  ,width=7, height=7, dpi=400 )
+  ggplot( perf60[perf60$Model %in% c("nnet", "nnet conv"),], aes(x=Hidden, y=100^2*Perf, color=Model) ) +
+    geom_line() + geom_line(data=glmPlot) + geom_line(data=pers) +
+    labs(x="Hidden Nodes", y="MSE on test set (60s)")
+  ,width=5, height=4, dpi=400 )
