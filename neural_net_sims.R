@@ -213,29 +213,38 @@ fit.nn60.pred = read.csv(file="fit.nn60.pred.csv")
 fit.nn.pred.full = read.csv(file="fit.nn.pred.full.csv")
 fit.nn60.pred.full = read.csv(file="fit.nn60.pred.full.csv")
 
-perf = data.frame(Model="GLM",Hidden=NA,Perf=eval_preds( fit.glm.pred )[[1]])
+perf = data.frame(Model="GLM",Hidden=NA
+  ,Perf=eval_preds( fit.glm.pred[temp$cvGroup==-1], price_diff=d[temp$cvGroup==-1,5]
+      ,price=d[temp$cvGroup==-1,2], time=d[temp$cvGroup==-1,1] )[[1]])
 perf$Model = as.character(perf$Model)
-perf = rbind(perf,c("Persistence",NA,eval_preds(0)[[1]]) )
+perf = rbind(perf,c("Persistence",NA,eval_preds(0, price_diff=d[temp$cvGroup==-1,5]
+      ,price=d[temp$cvGroup==-1,2], time=d[temp$cvGroup==-1,1])[[1]]) )
 for(i in 1:ncol(fit.nn.pred) )
-  perf = rbind(perf,c("nnet",c(2,3,4,6,8,10,15,20)[i],eval_preds( c(fit.nn.pred[,i],NA) )[[1]]))
+  perf = rbind(perf,c("nnet",c(2,3,4,6,8,10,15,20)[i],eval_preds( fit.nn.pred[temp$cvGroup==-1,i], price_diff=d[temp$cvGroup==-1,5]
+      ,price=d[temp$cvGroup==-1,2], time=d[temp$cvGroup==-1,1] )[[1]]))
 for(i in 1:ncol(fit.nn.pred.full) )
-  perf = rbind(perf,c("nnet conv",c(2,3,4,6,8,10,15,20)[i],eval_preds( c(fit.nn.pred.full[,i],NA) )[[1]]))
-perf60 = data.frame(Model="GLM",Hidden=NA,Perf=eval_preds( fit.glm60.pred, price_diff=d[,4] )[[1]])
+  perf = rbind(perf,c("nnet conv",c(2,3,4,6,8,10,15,20)[i],eval_preds( fit.nn.pred.full[temp$cvGroup==-1,i], price_diff=d[temp$cvGroup==-1,5]
+      ,price=d[temp$cvGroup==-1,2], time=d[temp$cvGroup==-1,1] )[[1]]))
+perf60 = data.frame(Model="GLM",Hidden=NA,Perf=eval_preds( fit.glm60.pred[temp$cvGroup==-1], price_diff=d[temp$cvGroup==-1,4]
+      ,price=d[temp$cvGroup==-1,2], time=d[temp$cvGroup==-1,1] )[[1]])
 perf60$Model = as.character(perf60$Model)
-perf60 = rbind(perf60,c("Persistence",NA,eval_preds(0, price_diff=d[,4])[[1]]) )
+perf60 = rbind(perf60,c("Persistence",NA,eval_preds(0, price_diff=d[temp$cvGroup==-1,4]
+      ,price=d[temp$cvGroup==-1,2], time=d[temp$cvGroup==-1,1])[[1]]) )
 for(i in 1:ncol(fit.nn.pred) )
-  perf60 = rbind(perf60,c("nnet",c(2,3,4,6,8,10,15,20)[i],eval_preds( c(fit.nn60.pred[,i],NA), price_diff=d[,4] )[[1]]))
+  perf60 = rbind(perf60,c("nnet",c(2,3,4,6,8,10,15,20)[i],eval_preds( fit.nn60.pred[temp$cvGroup==-1,i], price_diff=d[temp$cvGroup==-1,4]
+      ,price=d[temp$cvGroup==-1,2], time=d[temp$cvGroup==-1,1] )[[1]]))
 for(i in 1:ncol(fit.nn.pred.full) )
-  perf60 = rbind(perf60,c("nnet conv",c(2,3,4,6,8,10,15,20)[i],eval_preds( c(fit.nn60.pred.full[,i],NA), price_diff=d[,4] )[[1]]))
-write.csv(perf, "perf.csv")
-write.csv(perf60, "perf60.csv")
+  perf60 = rbind(perf60,c("nnet conv",c(2,3,4,6,8,10,15,20)[i],eval_preds( fit.nn60.pred.full[temp$cvGroup==-1,i], price_diff=d[temp$cvGroup==-1,4]
+      ,price=d[temp$cvGroup==-1,2], time=d[temp$cvGroup==-1,1] )[[1]]))
+write.csv(perf, "perf.csv", row.names=F)
+write.csv(perf60, "perf60.csv", row.names=F)
 perf = read.csv("perf.csv")
 perf60 = read.csv("perf60.csv")
 
 pers = data.frame(Model="Persistence", Hidden=c(0,20), Perf=perf$Perf[perf$Model=="Persistence"])
 glmPlot = data.frame(Model="GLM", Hidden=c(0,20), Perf=perf$Perf[perf$Model=="GLM"])
 ggsave("performance_of_1sec_nnet.png",
-  ggplot( perf[perf$Model %in% c("nnet", "nnet conv"),], aes(x=Hidden, y=Perf, color=Model) ) +
+  ggplot( perf[perf$Model %in% c("nnet", "nnet conv"),], aes(x=Hidden, y=sqrt(Perf), color=Model) ) +
     geom_line() + geom_line(data=glmPlot) + geom_line(data=pers) +
     labs(x="Hidden Nodes", y="MSE on test set (1s)")
   ,width=5, height=4, dpi=400 )
@@ -243,7 +252,7 @@ ggsave("performance_of_1sec_nnet.png",
 pers = data.frame(Model="Persistence", Hidden=c(0,20), Perf=perf60$Perf[perf60$Model=="Persistence"])
 glmPlot = data.frame(Model="GLM", Hidden=c(0,20), Perf=perf60$Perf[perf60$Model=="GLM"])
 ggsave("performance_of_60sec_nnet.png",
-  ggplot( perf60[perf60$Model %in% c("nnet", "nnet conv"),], aes(x=Hidden, y=100^2*Perf, color=Model) ) +
+  ggplot( perf60[perf60$Model %in% c("nnet", "nnet conv"),], aes(x=Hidden, y=100*sqrt(Perf), color=Model) ) +
     geom_line() + geom_line(data=glmPlot) + geom_line(data=pers) +
     labs(x="Hidden Nodes", y="MSE on test set (60s)")
   ,width=5, height=4, dpi=400 )
