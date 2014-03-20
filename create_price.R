@@ -1,5 +1,5 @@
 source_github("https://raw2.github.com/rockclimber112358/practicum/master/functions.R")
-source("/u/st/fl/jbrownin/MATH598_Statistics_Practicum/R_Code/functions.R")
+#source("/u/st/fl/jbrownin/MATH598_Statistics_Practicum/R_Code/functions.R")
 
 options(digits.secs=6)
 
@@ -7,20 +7,19 @@ options(digits.secs=6)
 # Raw processing: read in files, restructure
 ###############################################################################
 
-raw = read.csv(file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/Data/20131104.CLZ3.log")
-raw = rbind(raw, read.csv(file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/Data/20131105.CLZ3.log") )
-raw = rbind(raw, read.csv(file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/Data/20131106.CLZ3.log") )
-raw = rbind(raw, read.csv(file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/Data/20131107.CLZ3.log") )
-raw = rbind(raw, read.csv(file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/Data/20131108.CLZ3.log") )
-
+setwd("/media/storage/Professional Files/Mines/MATH 598- Statistics Practicum/Data/")
 raw = read.csv(file="20131104.CLZ3.log")
 raw = rbind(raw, read.csv(file="20131105.CLZ3.log") )
 raw = rbind(raw, read.csv(file="20131106.CLZ3.log") )
 raw = rbind(raw, read.csv(file="20131107.CLZ3.log") )
 raw = rbind(raw, read.csv(file="20131108.CLZ3.log") )
 
-#raw = read.csv(file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/20131104.CLZ3.log")
-#raw = rbind(raw, read.csv(file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/20131105.CLZ3.log") )
+#raw = read.csv(file="20131104.CLZ3.log")
+#raw = rbind(raw, read.csv(file="20131105.CLZ3.log") )
+#raw = rbind(raw, read.csv(file="20131106.CLZ3.log") )
+#raw = rbind(raw, read.csv(file="20131107.CLZ3.log") )
+#raw = rbind(raw, read.csv(file="20131108.CLZ3.log") )
+
 raw$Time = as.POSIXct(strptime(x=raw$Time, format="%Y%m%d %H:%M:%OS"))
 #Convert time to a numeric vector (i.e. seconds after 2013-11-04 00:00:00):
 raw$Time = as.numeric( raw$Time - as.POSIXct("2013-11-04") )
@@ -34,17 +33,17 @@ orders = raw[raw$RestingSide!="",]
 orders = orders[,c(1,32:34)]
 orders = orders[orders$RestingSide!="null",]
 write.csv( file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/orders.csv", orders )
-write.csv( orders, file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/orders.csv", row.names=F )
+write.csv( orders, file="/media/storage/Professional Files/Mines/MATH 598- Statistics Practicum/orders.csv", row.names=F )
 
 rm(raw); gc()
 
 price$PriceDiff1SecAhead = (price$MicroPrice1SecAhead - price$MicroPrice)*100
 #price$PriceRatio1SecAhead = price$MicroPrice1SecAhead / price$MicroPrice - 1
-#price$PriceDiff60SecAhead = price$MicroPrice60SecAhead - price$MicroPrice
+price$PriceDiff60SecAhead = (price$MicroPrice60SecAhead - price$MicroPrice)*100
 #price$PriceRatio60SecAhead = price$MicroPrice60SecAhead / price$MicroPrice - 1
 set.seed(123)
-price$cvGroup = c(sample(c(rep(1:5,each=148125),rep(6:10,each=148124))),rep(-1,1237233))
-price$Model.No = as.numeric( price$Time %% (24*60*60) > 6.75*60*60 & price$Time %% (24*60*60) < 13.5*60*60 )
+price$day = floor( price$Time/(24*60*60) ) + 1
+price$Outcry = as.numeric( price$Time %% (24*60*60) > 6.75*60*60 & price$Time %% (24*60*60) < 13.5*60*60 )
 
 ###############################################################################
 # Define adjusted microprice(s)
@@ -62,7 +61,9 @@ price$OfferLow3Cnt = apply(price[,6:10*3-1]*(abs(price[,6:10*3+1]-price$OfferPri
 price$OfferLow4Cnt = apply(price[,6:10*3-1]*(abs(price[,6:10*3+1]-price$OfferPrice1-.03)<.005),1,sum, na.rm=T)
 price$OfferLow5Cnt = apply(price[,6:10*3-1]*(abs(price[,6:10*3+1]-price$OfferPrice1-.04)<.005),1,sum, na.rm=T)
 
-form = paste("PriceDiff1SecAhead ~", paste0("BidHigh",1:5,"Cnt", collapse=" + "),"+",paste0("OfferLow",1:5,"Cnt", collapse=" + "))
+form = paste("PriceDiff1SecAhead ~"
+  ,paste0("BidHigh",1:5,"Cnt", collapse=" + ")
+  ,"+",paste0("OfferLow",1:5,"Cnt", collapse=" + "))
 
 #cvGroup = sample(1:10, size=nrow(price), replace=T)
 #fit = cvModel( d=price, cvGroup, indCol=35, model=paste("glm(", form, ")" ) )
@@ -70,8 +71,9 @@ form = paste("PriceDiff1SecAhead ~", paste0("BidHigh",1:5,"Cnt", collapse=" + ")
 #coeffs = melt(coeffs, measure.vars=1:ncol(coeffs) )
 #ggplot( coeffs, aes(x=variable, y=value) ) + geom_point() +
 #  geom_boxplot()
-#Coefficients are very consistent across CV groups (except for intercept).  Thus, it should be safe to use the model without worrying about it skewing cross-validation results.
+#Coefficients are very consistent across CV groups (except for intercept).
 
+#Create an adjusted MicroPrice using a linear regression on the 2 days of training data:
 fit = glm( as.formula(form), data=price[price$Time<=2*24*60*60,])
 price$MicroPriceAdj = predict(fit, newdata=price)
 price$MicroPriceAdj = price$MicroPriceAdj + price$MicroPrice
@@ -80,10 +82,11 @@ price$MicroPriceAdj = price$MicroPriceAdj + price$MicroPrice
 price$LogBookImb = log( (price$BidQuantity1 + price$BidQuantity2 + price$BidQuantity3 + price$BidQuantity4 + price$BidQuantity5)
   / (price$OfferQuantity1 + price$OfferQuantity2 + price$OfferQuantity3 + price$OfferQuantity4 + price$OfferQuantity5) )
 price$LogBookImbInside = log( price$BidQuantity1 / price$OfferQuantity1 )
-price$BidQuantityAdj = as.numeric( cbind(price$BidHigh1Cnt, price$BidHigh2Cnt, price$BidHigh3Cnt, price$BidHigh4Cnt, price$BidHigh5Cnt) %*% 2^(0:-4) )
-price$OfferQuantityAdj = as.numeric( cbind(price$OfferLow1Cnt, price$OfferLow2Cnt, price$OfferLow3Cnt, price$OfferLow4Cnt, price$OfferLow5Cnt) %*% 2^(0:-4) )
-price$MicroPriceAdjExp = (price$BidPrice1*(price$OfferQuantityAdj)+price$OfferPrice1*(price$BidQuantityAdj) ) /
-  (price$OfferQuantityAdj + price$BidQuantityAdj)
+#The MicroPriceAdjExp didn't seem as useful...
+#price$BidQuantityAdj = as.numeric( cbind(price$BidHigh1Cnt, price$BidHigh2Cnt, price$BidHigh3Cnt, price$BidHigh4Cnt, price$BidHigh5Cnt) %*% 2^(0:-4) )
+#price$OfferQuantityAdj = as.numeric( cbind(price$OfferLow1Cnt, price$OfferLow2Cnt, price$OfferLow3Cnt, price$OfferLow4Cnt, price$OfferLow5Cnt) %*% 2^(0:-4) )
+#price$MicroPriceAdjExp = (price$BidPrice1*(price$OfferQuantityAdj)+price$OfferPrice1*(price$BidQuantityAdj) ) /
+#  (price$OfferQuantityAdj + price$BidQuantityAdj)
 
 ggplot(price[sample(1:nrow(price),size=100000),], aes(x=LogBookImb, y=PriceDiff1SecAhead) ) +
   geom_point(alpha=.1) + geom_smooth()
@@ -109,15 +112,19 @@ rmCols = c(paste0("BidQuantity",1:5), paste0("BidNumberOfOrders",1:5), paste0("B
           ,paste0("OfferQuantity",1:5), paste0("OfferNumberOfOrders",1:5), paste0("OfferPrice",1:5)
           ,paste0("BidHigh",1:5,"Cnt"), paste0("OfferLow",1:5,"Cnt"), "BidQuantityAdj", "OfferQuantityAdj")
 for(i in rmCols) price[,i] = NULL
-write.csv(price,"price_base_cols.csv",row.names=F)
+write.csv(price, "price_base_cols.csv", row.names=F)
 
 ###############################################################################
-# Add Lagged Time Variables
+# Load data into a big matrix object
 ###############################################################################
 
 library(bigmemory)
-d = big.matrix( nrow=nrow(price), ncol=(60+54+54+59)*4+(60+59)*2+11, backingfile="model_matrix" )
-index = 1
+#(60+54+54+59)*3: 4 different lag groups for main vars
+#(60+59)*2: 2 lag groups for trade vars
+#11: main columns (current variables, timestamp, etc.)
+#300: Extra columns, since you can't append more after creating (AFAIK)
+d = big.matrix( nrow=nrow(price), ncol=(60+54+54+59)*3+(60+59)*2+11+300, backingfile="model_matrix" )
+index = 1 #Specifies column of d that's being loaded
 cnames = c()
 for( i in 1:11 ){
   d[,index] = price[,i]
@@ -125,28 +132,21 @@ for( i in 1:11 ){
   index = index + 1
 }
 
-# MicroPrice adjusted using linear model
+# Lagged MicroPrice adjusted using linear model
 for( lag in c(1:60*.01,7:60*.1,7:60,2:60*60 ) ){
   d[,index] = load_lag_price(price[,c("Time","MicroPriceAdj")], lags=lag)
   cnames[index] = paste0("Lag_",lag,"_MicroPriceAdj")
   index = index + 1
 }
 
-# MicroPrice adjusted using exponential weighting
-for( lag in c(1:60*.01,7:60*.1,7:60,2:60*60 ) ){
-  d[,index] = load_lag_price(price[,c("Time","MicroPriceAdjExp")], lags=lag)
-  cnames[index] = paste0("Lag_",lag,"_MicroPriceAdjExp")
-  index = index + 1
-}
-
-# Log( Order Book Imbalance ) for provided bids/offers
+# Lagged Log( Order Book Imbalance ) for provided bids/offers
 for( lag in c(1:60*.01,7:60*.1,7:60,2:60*60 ) ){
   d[,index] = load_lag_price(price[,c("Time","LogBookImb")], lags=lag)
   cnames[index] = paste0("Lag_",lag,"_LogBookImb")
   index = index + 1
 }
 
-# Log( Order Book Imbalance ) for just the inside bid and offer
+# Lagged Log( Order Book Imbalance ) for just the inside bid and offer
 for( lag in c(1:60*.01,7:60*.1,7:60,2:60*60 ) ){
   d[,index] = load_lag_price(price[,c("Time","LogBookImbInside")], lags=lag)
   cnames[index] = paste0("Lag_",lag,"_LogBookImbInside")
