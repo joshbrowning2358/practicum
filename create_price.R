@@ -9,11 +9,13 @@ options(digits.secs=6)
 
 raw = read.csv(file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/Data/20131104.CLZ3.log")
 raw = rbind(raw, read.csv(file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/Data/20131105.CLZ3.log") )
+raw = rbind(raw, read.csv(file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/Data/20131106.CLZ3.log") )
 raw = rbind(raw, read.csv(file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/Data/20131107.CLZ3.log") )
 raw = rbind(raw, read.csv(file="/home/josh/Documents/Professional Files/Mines/MATH 598- Statistics Practicum/Data/20131108.CLZ3.log") )
 
 raw = read.csv(file="20131104.CLZ3.log")
 raw = rbind(raw, read.csv(file="20131105.CLZ3.log") )
+raw = rbind(raw, read.csv(file="20131106.CLZ3.log") )
 raw = rbind(raw, read.csv(file="20131107.CLZ3.log") )
 raw = rbind(raw, read.csv(file="20131108.CLZ3.log") )
 
