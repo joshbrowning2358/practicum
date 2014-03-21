@@ -639,3 +639,67 @@ sim_nnet = function(type, n, hidden, input){
   out$n = n
   return(out)
 }
+
+#ind_vars=c("LogBookImbInside","MicroPriceAdj")
+#Potential Improvements:
+#- Change time delay to be based on time of day instead of decaying back indefinitely
+weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
+      ,price.decay=0.6, day.decay=1, time.decay=0.99999, outcry.decay=0.5, step.size=15*60
+      ,chunk.rows=25000){
+  #Note: outcry starts at 6:45 and ends at 1:30.  If step.size is such that 6:45 and 1:30 are not
+  #divisible by it, then you may have weird estimates on those boundaries (since outcry is assumed
+  #to be on or off over the whole step.size period).
+  if(any(round(c(6.75,13.5)*60*60/step.size)!=round(c(6.75,13.5)*60*60/step.size)))
+    warning("Step size may lead to invalid predictions as it doesn't split outcry hours well!")
+
+  #Reorder ind_var_names (sort based on cnames for easy prediction):
+  ind_vars = ind_vars[order( match(ind_vars,cnames) )]
+  col.inx = cnames %in% c(dep_var,ind_vars,"Time","MicroPrice","day","Outcry","Weights")
+  col.inx = c(col.inx, rep(F,ncol(d)-length(cnames)))
+  preds = rep(0,nrow(d))
+
+  #Define function to read data:
+  read.d = function(reset){
+    if(reset){
+      skip.rows<<-0
+      return(NULL)
+    }
+    row.inx = (skip.rows+1):min(skip.rows+chunk.rows,nrow(d))
+    #filter controls which rows are useable for the current model:
+    while( sum(filter[row.inx])==0 & skip.rows < nrow(d)-1 ){
+      skip.rows <<- skip.rows + chunk.rows
+      row.inx = (skip.rows+1):min(skip.rows+chunk.rows,nrow(d))
+    }
+    if(skip.rows>=nrow(d)-1) return(NULL)
+    out = data.frame( d[row.inx,col.inx] )
+    colnames(out) = cnames[col.inx]
+    skip.rows <<- skip.rows + chunk.rows
+    #Stop processing once filter becomes F (i.e. reached end of training set)
+    if(any(!filter[row.inx])) skip.rows<<-nrow(d)
+    return(out[filter[row.inx],])
+  }
+  
+  #Create the bigmatrix model:
+  form = as.formula( paste0( dep_var, "~", paste(ind_vars,collapse="+") ) )
+  time.loop = 24*60*60*2 + seq(0,24*60*60*3,by=step.size)
+  #Remove times after end of dataset:
+  time.loop = time.loop[time.loop<max(d[,which(cnames=="Time")])]
+  for( i in time.loop ){
+    filter = d[,which(cnames=="Time")]<=(i-60)
+    pred.filter = d[,which(cnames=="Time")]>i & d[,which(cnames=="Time")]<=i+step.size
+    d[filter,which(cnames=="Weights")] = 
+      #Use the last observed MicroPriceAdj and compare that to all MicroPrices (larger diff=>smaller weight)
+      price.decay^(abs(d[filter,which(cnames=="MicroPriceAdj")][sum(filter)]-d[filter,which(cnames=="MicroPriceAdj")]))*
+      #Use the first time and compare that to all times (larger diff=>smaller weight)
+      time.decay^(abs(i-d[filter,which(cnames=="Time")]))*
+      #Use the outcry for the first prediction obs and compare that to all outcries (if diff=>smaller weight)
+      outcry.decay^(abs(d[sum(filter)+1,which(cnames=="Outcry")]-d[filter,which(cnames=="Outcry")]))*
+      #Use the day for the first prediction obs and compare that to all days (larger diff=>smaller weight)
+      day.decay^(abs(d[sum(filter)+1,which(cnames=="day")]-d[filter,which(cnames=="day")]))
+    fit = bigglm( form, read.d, weights=Weights~1 )
+    pred.d = data.frame(d[pred.filter,col.inx])
+    colnames(pred.d) = cnames[col.inx]
+    preds[pred.filter] = predict(fit, newdata=pred.d)
+  }
+  return(preds)
+}
