@@ -32,18 +32,22 @@ price = price[,c(1:31,35:37)]
 orders = raw[raw$RestingSide!="",]
 orders = orders[,c(1,32:34)]
 orders = orders[orders$RestingSide!="null",]
-write.csv( file="C:/Users/jbrowning/Desktop/To Home/Personal/Mines Files/MATH 598- Statistics Practicum/Data/orders.csv", orders )
 write.csv( orders, file="/media/storage/Professional Files/Mines/MATH 598- Statistics Practicum/orders.csv", row.names=F )
 
 rm(raw); gc()
 
-price$PriceDiff1SecAhead = (price$MicroPrice1SecAhead - price$MicroPrice)*100
+price$PriceDiff1SecAhead = (price$MicroPrice1SecAhead - price$MicroPrice)*1000
 #price$PriceRatio1SecAhead = price$MicroPrice1SecAhead / price$MicroPrice - 1
-price$PriceDiff60SecAhead = (price$MicroPrice60SecAhead - price$MicroPrice)*100
+price$PriceDiff60SecAhead = (price$MicroPrice60SecAhead - price$MicroPrice)*1000
 #price$PriceRatio60SecAhead = price$MicroPrice60SecAhead / price$MicroPrice - 1
-set.seed(123)
 price$day = floor( price$Time/(24*60*60) ) + 1
 price$Outcry = as.numeric( price$Time %% (24*60*60) > 6.75*60*60 & price$Time %% (24*60*60) < 13.5*60*60 )
+price$Diff = c(0,as.numeric(price$BidQuantity1[2:nrow(price)-1]   !=price$BidQuantity1[2:nrow(price)]|
+                            price$BidPrice1[2:nrow(price)-1]      !=price$BidPrice1[2:nrow(price)]|
+                            price$OfferQuantity1[2:nrow(price)-1] !=price$OfferQuantity1[2:nrow(price)]|
+                            price$OfferPrice1[2:nrow(price)-1]    !=price$OfferPrice1[2:nrow(price)]))
+price$Diff[is.na(price$Diff)] = 0
+price$Weight = 0 #Placeholder, assigned later
 
 ###############################################################################
 # Define adjusted microprice(s)
@@ -118,7 +122,6 @@ write.csv(price, "price_base_cols.csv", row.names=F)
 # Load data into a big matrix object
 ###############################################################################
 
-library(bigmemory)
 #(60+54+54+59)*3: 4 different lag groups for main vars
 #(60+59)*2: 2 lag groups for trade vars
 #11: main columns (current variables, timestamp, etc.)
