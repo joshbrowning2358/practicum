@@ -67,14 +67,14 @@ eval_print = function( preds, price_diff=d[,5], price=d[,2], time=d[,1] ){
        ,ifelse( d.eval$time < 72*60*60, "Wednesday"
        ,ifelse( d.eval$time < 96*60*60, "Thursday"
        ,ifelse( d.eval$time < 120*60*60, "Friday", "Error" ) ) ) ) )
-  if( any(d.eval$day %in% c("Error","Wednesday")) ) stop("Bad times: Wednesday or out of range")
-  d.eval$day = factor(d.eval$day, levels=c("Monday","Tuesday","Thursday","Friday"))
+  if( any(d.eval$day %in% c("Error")) ) stop("Bad times: Out of range")
+  d.eval$day = factor(d.eval$day, levels=c("Monday","Tuesday","Wednesday","Thursday","Friday"))
   out = ddply( d.eval, "day", function(x){
     d = data.frame(MSE.Model=sum(x$err^2)/nrow(x), MSE.Pers=sum(x$price_diff^2)/nrow(x))
     d$Ratio = d[,1]/d[,2]
     return(d)
   } )
-  d.eval$day = ifelse(d.eval$day %in% c("Thursday", "Friday"), "Thu-Fri", "Mon-Tue")
+  d.eval$day = ifelse(d.eval$day %in% c("Wednesday","Thursday"), "Wed-Thu", "Mon-Tue")
   out = rbind( out, ddply( d.eval, "day", function(x){
     d = data.frame(MSE.Model=sum(x$err^2)/nrow(x), MSE.Pers=sum(x$price_diff^2)/nrow(x))
     d$Ratio = d[,1]/d[,2]
