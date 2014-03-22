@@ -32,7 +32,7 @@ price = price[,c(1:31,35:37)]
 orders = raw[raw$RestingSide!="",]
 orders = orders[,c(1,32:34)]
 orders = orders[orders$RestingSide!="null",]
-write.csv( orders, file="/media/storage/Professional Files/Mines/MATH 598- Statistics Practicum/orders.csv", row.names=F )
+write.csv( orders, file="orders.csv", row.names=F )
 
 rm(raw); gc()
 
@@ -124,9 +124,9 @@ write.csv(price, "price_base_cols.csv", row.names=F)
 
 #(60+54+54+59)*3: 4 different lag groups for main vars
 #(60+59)*2: 2 lag groups for trade vars
-#11: main columns (current variables, timestamp, etc.)
+#13: main columns (current variables, timestamp, etc.)
 #300: Extra columns, since you can't append more after creating (AFAIK)
-d = big.matrix( nrow=nrow(price), ncol=(60+54+54+59)*3+(60+59)*2+11+300, backingfile="model_matrix" )
+d = big.matrix( nrow=nrow(price), ncol=(60+54+54+59)*3+(60+59)*2+13+300, backingfile="model_matrix" )
 index = 1 #Specifies column of d that's being loaded
 cnames = c()
 for( i in 1:11 ){
