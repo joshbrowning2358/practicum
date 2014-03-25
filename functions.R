@@ -17,18 +17,29 @@ library(biglm)
 library(bigmemory)
 library(sqldf)
 
-eval_preds = function( preds, price_diff=d[,5], price=d[,2], time=d[,1], full=F ){
+#preds should be a vector that has a length=nrow(d).  It contains prediction values for the days/times of interest.
+#d should be the big.matrix object.
+#cnames is the colnames of d
+#type should be 1 or 60 depending on the type of model: 1-second or 60-second forecasting
+#full: Returns a list of performance by time and performance by price level if T.
+eval_preds = function( preds, d, cnames, type, full=F ){
   if( any(is.na(preds)) ){
     warning(paste0("No NAs allowed in predictions!  ",sum(is.na(preds))," NA's replaced with MicroPrice at that time."))
     preds[is.na(preds)] = price[is.na(preds)]
   }
-  eval.rows = c(0,diff( price ))!=0
-  eval.rows[is.na(eval.rows)] = FALSE
-  d.eval = data.frame( err=preds-price_diff, time, price, price_diff )
+  eval.rows = d[,which(cnames=="Diff")]==1
+  if(type==1) price_diff = d[,which(cnames=="PriceDiff1SecAhead")]
+  if(type==60) price_diff = d[,which(cnames=="PriceDiff60SecAhead")]
+  if(type!=1 & type!=60) stop("Invalid type supplied")
+  time = d[,which(cnames=="Time")]
+  price = d[,which(cnames=="MicroPrice")]
+  day = d[,which(cnames=="day")]
+  d.eval = data.frame( err=preds-price_diff, time, price, price_diff, day )
   d.eval = d.eval[eval.rows,]
 
-  d.agg.tot = sum(d.eval$err^2)/nrow(d.eval)
-
+  d.agg.tot = sqrt(mean(d.eval$err[d.eval$day %in% c(3,4)]^2, na.rm=T))
+  d.agg.day = ddply(d.eval, "day", function(df){sqrt(mean(df$err^2, na.rm=T))})
+  
   if(full){
     #Aggregate performance over time:
     d.eval$time = floor( d.eval$time/15/60 )*15*60
@@ -50,7 +61,7 @@ eval_preds = function( preds, price_diff=d[,5], price=d[,2], time=d[,1], full=F 
     return( list( sqrt(d.agg.tot), d.agg.t, d.agg.p ) )
   }
   
-  return(sqrt(d.agg.tot))
+  return(list(d.agg.tot,d.agg.day))
 }
 
 eval_print = function( preds, price_diff=d[,5], price=d[,2], time=d[,1] ){
@@ -643,9 +654,27 @@ sim_nnet = function(type, n, hidden, input){
 #ind_vars=c("LogBookImbInside","MicroPriceAdj")
 #Potential Improvements:
 #- Change time delay to be based on time of day instead of decaying back indefinitely
+#d: big.matrix object
+#ind_vars: names of variables to be used in the model
+#dep_var: Either "PriceDiff1SecAhead" or "PriceDiff60SecAhead"
+#price_decay: How the case weights should decrease as a function of price level?  If the current price is $94, then observations at $95 and $93 will have weight 1*price.decay.
+#day.decay: How should the case weights decrease as a function of day?  For k days in the past, case weights are decayed by (day.decay)^k
+#time.decay: How should the case weights decrease as a function of time?  For k seconds in the past, case weights are decayed by (time.decay)^k
+#outcry.decay: How should the case weights decrease as a function of outcry period?  If the observation is the same as the current outcry, don't decay, otherwise multiply by this factor.
+#step.size: How frequently should models be built (in seconds)?  Smaller values should be more accurate but take longer to fit.
+#chunk.rows: Controls how many rows are read at one time for the bigglm algorithm.
+#type: Should be either "GLM" or "nnet".  Either a linear regression or neural network model is then used.
+#hidden: How many hidden nodes to fit with nnet?  Ignored for type="GLM"
 weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
       ,price.decay=0.6, day.decay=1, time.decay=0.99999, outcry.decay=0.5, step.size=15*60
-      ,chunk.rows=25000){
+      ,chunk.rows=25000, type="GLM", hidden=10){
+
+  #Put in a safety net to help keep R from crashing.  Running this with nnet and even a few predictors could take a LONG time.
+  if(type=="nnet" & length(ind_vars)>10 ){
+    are_u_sure = readline("Algorithm may take a very long time.  Are you sure you want to continue (1=Yes, 0=No)?")
+    if(are_u_sure!=1) stop("Algorithm aborted by user")
+  }
+
   #Note: outcry starts at 6:45 and ends at 1:30.  If step.size is such that 6:45 and 1:30 are not
   #divisible by it, then you may have weird estimates on those boundaries (since outcry is assumed
   #to be on or off over the whole step.size period).
@@ -654,14 +683,15 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
 
   #Reorder ind_var_names (sort based on cnames for easy prediction):
   ind_vars = ind_vars[order( match(ind_vars,cnames) )]
-  col.inx = cnames %in% c(dep_var,ind_vars,"Time","MicroPrice","day","Outcry","Weights")
+  col.inx = cnames %in% c(dep_var,ind_vars,"Time","MicroPrice","day","Outcry","Weight")
   col.inx = c(col.inx, rep(F,ncol(d)-length(cnames)))
   preds = rep(0,nrow(d))
 
-  #Define function to read data:
+  #Define function to read data.  This is needed for the bigglm model.  This function should return NULL when passed TRUE (and 
+  #reset the point we're reading from) and should return the next chunk of data when passed FALSE.
   read.d = function(reset){
     if(reset){
-      skip.rows<<-0
+      skip.rows<<-0 #Use <<- to assign to global environment
       return(NULL)
     }
     row.inx = (skip.rows+1):min(skip.rows+chunk.rows,nrow(d))
@@ -684,10 +714,15 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
   time.loop = 24*60*60*2 + seq(0,24*60*60*3,by=step.size)
   #Remove times after end of dataset:
   time.loop = time.loop[time.loop<max(d[,which(cnames=="Time")])]
+
+  #Build the model for each time chunk:
   for( i in time.loop ){
-    filter = d[,which(cnames=="Time")]<=(i-60)
-    pred.filter = d[,which(cnames=="Time")]>i & d[,which(cnames=="Time")]<=i+step.size
-    d[filter,which(cnames=="Weights")] = 
+    filter = d[,which(cnames=="Time")]<=(i-60) #Only use rows which are more than 60 seconds before the first prediction
+    pred.filter = d[,which(cnames=="Time")]>i & d[,which(cnames=="Time")]<=i+step.size #Define which rows you'll be predicting
+    #If MicroPrice is NA on some row, don't predict for that row (this code generates a warning without this)
+    pred.filter = pred.filter & !is.na(d[,which(cnames=="MicroPrice")])
+    #Update the case weights:
+    d[filter,which(cnames=="Weight")] = 
       #Use the last observed MicroPriceAdj and compare that to all MicroPrices (larger diff=>smaller weight)
       price.decay^(abs(d[filter,which(cnames=="MicroPriceAdj")][sum(filter)]-d[filter,which(cnames=="MicroPriceAdj")]))*
       #Use the first time and compare that to all times (larger diff=>smaller weight)
@@ -696,10 +731,25 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
       outcry.decay^(abs(d[sum(filter)+1,which(cnames=="Outcry")]-d[filter,which(cnames=="Outcry")]))*
       #Use the day for the first prediction obs and compare that to all days (larger diff=>smaller weight)
       day.decay^(abs(d[sum(filter)+1,which(cnames=="day")]-d[filter,which(cnames=="day")]))
-    fit = bigglm( form, read.d, weights=Weights~1 )
-    pred.d = data.frame(d[pred.filter,col.inx])
-    colnames(pred.d) = cnames[col.inx]
-    preds[pred.filter] = predict(fit, newdata=pred.d)
+
+    #Clear out all the other weights, just in case:
+    d[!filter,which(cnames=="Weight")] = 0
+
+    #Fit a GLM if that's what's desired:
+    if(type=="GLM") fit = bigglm( form, read.d, weights=Weight~1 )
+
+    #Fit a neural network if that's what's desired.  Note: the necessary data matrix is brought into RAM in this case.  Be careful!
+    if(type=="nnet"){
+      cols = which(sapply( cnames, function(x)grepl(x,form) ))
+      cols = c(cols, which(cnames=="Weight"))
+      data = d[filter,cols]
+      fit = nnet( form, weights=Weights, data=data, linout=TRUE, maxit=100000, hidden=hidden )
+    }
+    
+    #Make predictions:
+    pred.d = data.frame(d[pred.filter,col.inx]) #covariates used for predictions
+    colnames(pred.d) = cnames[col.inx] #Give the covariates the correct colnames
+    preds[pred.filter] = predict(fit, newdata=pred.d) #Update preds (in the correct rows) with the new predictions
   }
   return(preds)
 }
