@@ -48,6 +48,8 @@ price$Diff = c(0,as.numeric(price$BidQuantity1[2:nrow(price)-1] !=price$BidQuant
                             price$OfferPrice1[2:nrow(price)-1] !=price$OfferPrice1[2:nrow(price)]))
 price$Diff[is.na(price$Diff)] = 0
 price$Weight = 0 #Placeholder, assigned later
+price$BidQRatio = price$BidQuantity1/(price$BidQuantity1+price$OfferQuantity1) #Placeholder, assigned later
+price$Width = price$OfferPrice1-price$BidPrice1
 
 ###############################################################################
 # Define adjusted microprice(s)
@@ -122,11 +124,11 @@ write.csv(price, "price_base_cols.csv", row.names=F)
 # Load data into a big matrix object
 ###############################################################################
 
-#(60+54+54+59)*3: 4 different lag groups for main vars
+#(60+54+54+59)*5: 4 different lag groups for main vars
 #(60+59)*2: 2 lag groups for trade vars
 #13: main columns (current variables, timestamp, etc.)
 #300: Extra columns, since you can't append more after creating (AFAIK)
-d = big.matrix( nrow=nrow(price), ncol=(60+54+54+59)*3+(60+59)*2+13+300, backingfile="model_matrix" )
+d = big.matrix( nrow=nrow(price), ncol=(60+54+54+59)*5+(60+59)*2+13+300, backingfile="model_matrix" )
 index = 1 #Specifies column of d that's being loaded
 cnames = c()
 for( i in 1:ncol(price) ){
@@ -153,6 +155,20 @@ for( lag in c(1:60*.01,7:60*.1,7:60,2:60*60 ) ){
 for( lag in c(1:60*.01,7:60*.1,7:60,2:60*60 ) ){
   d[,index] = load_lag_price(price[,c("Time","LogBookImbInside")], lags=lag)
   cnames[index] = paste0("Lag_",lag,"_LogBookImbInside")
+  index = index + 1
+}
+
+# Lagged BidQRatio
+for( lag in c(1:60*.01,7:60*.1,7:60,2:60*60 ) ){
+  d[,index] = load_lag_price(price[,c("Time","BidQRatio")], lags=lag)
+  cnames[index] = paste0("Lag_",lag,"_BidQRatio")
+  index = index + 1
+}
+
+# Lagged BidQRatio
+for( lag in c(1:60*.01,7:60*.1,7:60,2:60*60 ) ){
+  d[,index] = load_lag_price(price[,c("Time","Width")], lags=lag)
+  cnames[index] = paste0("Lag_",lag,"_Width")
   index = index + 1
 }
 
