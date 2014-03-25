@@ -42,10 +42,10 @@ price$PriceDiff60SecAhead = (price$MicroPrice60SecAhead - price$MicroPrice)*1000
 #price$PriceRatio60SecAhead = price$MicroPrice60SecAhead / price$MicroPrice - 1
 price$day = floor( price$Time/(24*60*60) ) + 1
 price$Outcry = as.numeric( price$Time %% (24*60*60) > 6.75*60*60 & price$Time %% (24*60*60) < 13.5*60*60 )
-price$Diff = c(0,as.numeric(price$BidQuantity1[2:nrow(price)-1]   !=price$BidQuantity1[2:nrow(price)]|
-                            price$BidPrice1[2:nrow(price)-1]      !=price$BidPrice1[2:nrow(price)]|
+price$Diff = c(0,as.numeric(price$BidQuantity1[2:nrow(price)-1] !=price$BidQuantity1[2:nrow(price)]|
+                            price$BidPrice1[2:nrow(price)-1] !=price$BidPrice1[2:nrow(price)]|
                             price$OfferQuantity1[2:nrow(price)-1] !=price$OfferQuantity1[2:nrow(price)]|
-                            price$OfferPrice1[2:nrow(price)-1]    !=price$OfferPrice1[2:nrow(price)]))
+                            price$OfferPrice1[2:nrow(price)-1] !=price$OfferPrice1[2:nrow(price)]))
 price$Diff[is.na(price$Diff)] = 0
 price$Weight = 0 #Placeholder, assigned later
 
@@ -74,7 +74,7 @@ form = paste("PriceDiff1SecAhead ~"
 #coeffs = data.frame( do.call("rbind", fit$models) )
 #coeffs = melt(coeffs, measure.vars=1:ncol(coeffs) )
 #ggplot( coeffs, aes(x=variable, y=value) ) + geom_point() +
-#  geom_boxplot()
+# geom_boxplot()
 #Coefficients are very consistent across CV groups (except for intercept).
 
 #Create an adjusted MicroPrice using a linear regression on the 2 days of training data:
@@ -90,7 +90,7 @@ price$LogBookImbInside = log( price$BidQuantity1 / price$OfferQuantity1 )
 #price$BidQuantityAdj = as.numeric( cbind(price$BidHigh1Cnt, price$BidHigh2Cnt, price$BidHigh3Cnt, price$BidHigh4Cnt, price$BidHigh5Cnt) %*% 2^(0:-4) )
 #price$OfferQuantityAdj = as.numeric( cbind(price$OfferLow1Cnt, price$OfferLow2Cnt, price$OfferLow3Cnt, price$OfferLow4Cnt, price$OfferLow5Cnt) %*% 2^(0:-4) )
 #price$MicroPriceAdjExp = (price$BidPrice1*(price$OfferQuantityAdj)+price$OfferPrice1*(price$BidQuantityAdj) ) /
-#  (price$OfferQuantityAdj + price$BidQuantityAdj)
+# (price$OfferQuantityAdj + price$BidQuantityAdj)
 
 ggplot(price[sample(1:nrow(price),size=100000),], aes(x=LogBookImb, y=PriceDiff1SecAhead) ) +
   geom_point(alpha=.1) + geom_smooth()
@@ -129,7 +129,7 @@ write.csv(price, "price_base_cols.csv", row.names=F)
 d = big.matrix( nrow=nrow(price), ncol=(60+54+54+59)*3+(60+59)*2+13+300, backingfile="model_matrix" )
 index = 1 #Specifies column of d that's being loaded
 cnames = c()
-for( i in 1:11 ){
+for( i in 1:ncol(price) ){
   d[,index] = price[,i]
   cnames[index] = colnames(price)[i]
   index = index + 1
