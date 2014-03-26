@@ -652,9 +652,11 @@ sim_nnet = function(type, n, hidden, input){
   return(out)
 }
 
-#ind_vars=c("LogBookImbInside","MicroPriceAdj")
 #Potential Improvements:
 #- Change time delay to be based on time of day instead of decaying back indefinitely
+#- Include option to run nnet with multiple starting weights and chose best one
+#- Train nnet until it forecasts well on test set.  Probably not possible with nnet...
+
 #d: big.matrix object
 #ind_vars: names of variables to be used in the model
 #dep_var: Either "PriceDiff1SecAhead" or "PriceDiff60SecAhead"
