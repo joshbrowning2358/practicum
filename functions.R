@@ -669,9 +669,10 @@ sim_nnet = function(type, n, hidden, input){
 #type: Should be either "GLM" or "nnet".  Either a linear regression or neural network model is then used.
 #size: How many hidden nodes to fit with nnet?  Ignored for type="GLM"
 #min.wt: What obs should be ignored?  Ignored if their weight is less than max(Weight)*min.wt (nnet only)
+#repl: How many neural networks (with randomized weights) should be fit?  The network with best fit on training data is kept.  Ignored for type="GLM"
 weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
       ,price.decay=0.6, day.decay=1, time.decay=0.99999, outcry.decay=0.5, step.size=15*60
-      ,chunk.rows=25000, type="GLM", size=10, min.wt=.1){
+      ,chunk.rows=25000, type="GLM", size=10, min.wt=.1, repl=1){
 
   #Put in a safety net to help keep R from crashing.  Running this with nnet and even a few predictors could take a LONG time.
   if(type=="nnet" & length(ind_vars)>10 ){
@@ -753,7 +754,14 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
       colnames(data) = cnames[cols]
       #Remove rows of data with small weights to speed up nnet
       data = data[data$Weight>min.wt*max(data$Weight),]
-      fit = nnet( form, weights=Weight, data=data, linout=TRUE, maxit=100000, size=size, trace=F )
+      bestfit = nnet( form, weights=Weight, data=data, linout=TRUE, maxit=100000, size=size, trace=F )
+      i = 1
+      #Run nnet with several different initial weights if repl>1:
+      while(i < repl){
+        fit = nnet( form, weights=Weight, data=data, linout=TRUE, maxit=100000, size=size, trace=F )
+        if(fit$value<bestfit$value) bestfit=fit
+        i = i+1
+      }
       if(fit$convergence!=0) warning("Neural network failed to converge!")
     }
     
