@@ -755,12 +755,12 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
       #Remove rows of data with small weights to speed up nnet
       data = data[data$Weight>min.wt*max(data$Weight),]
       bestfit = nnet( form, weights=Weight, data=data, linout=TRUE, maxit=100000, size=size, trace=F )
-      i = 1
+      j = 1
       #Run nnet with several different initial weights if repl>1:
-      while(i < repl){
+      while(j < repl){
         fit = nnet( form, weights=Weight, data=data, linout=TRUE, maxit=100000, size=size, trace=F )
         if(fit$value<bestfit$value) bestfit=fit
-        i = i+1
+        j = j+1
       }
       if(fit$convergence!=0) warning("Neural network failed to converge!")
     }
