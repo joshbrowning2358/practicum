@@ -665,15 +665,18 @@ sim_nnet = function(type, n, hidden, input){
 #step.size: How frequently should models be built (in seconds)?  Smaller values should be more accurate but take longer to fit.
 #chunk.rows: Controls how many rows are read at one time for the bigglm algorithm.
 #type: Should be either "GLM" or "nnet".  Either a linear regression or neural network model is then used.
-#hidden: How many hidden nodes to fit with nnet?  Ignored for type="GLM"
+#size: How many hidden nodes to fit with nnet?  Ignored for type="GLM"
 weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
       ,price.decay=0.6, day.decay=1, time.decay=0.99999, outcry.decay=0.5, step.size=15*60
-      ,chunk.rows=25000, type="GLM", hidden=10){
+      ,chunk.rows=25000, type="GLM", size=10){
 
   #Put in a safety net to help keep R from crashing.  Running this with nnet and even a few predictors could take a LONG time.
   if(type=="nnet" & length(ind_vars)>10 ){
     are_u_sure = readline("Algorithm may take a very long time.  Are you sure you want to continue (1=Yes, 0=No)?")
     if(are_u_sure!=1) stop("Algorithm aborted by user")
+  }
+  if( !all(ind_vars %in% cnames) ){
+    stop("Not all variables in ind_vars are in cnames")
   }
 
   #Note: outcry starts at 6:45 and ends at 1:30.  If step.size is such that 6:45 and 1:30 are not
@@ -741,10 +744,11 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
 
     #Fit a neural network if that's what's desired.  Note: the necessary data matrix is brought into RAM in this case.  Be careful!
     if(type=="nnet"){
-      cols = which(sapply( cnames, function(x)grepl(x,form) ))
+      cols = which(cnames %in% c(dep_var,ind_vars))
       cols = c(cols, which(cnames=="Weight"))
-      data = d[filter,cols]
-      fit = nnet( form, weights=Weights, data=data, linout=TRUE, maxit=100000, hidden=hidden )
+      data = data.frame(d[filter,cols])
+      colnames(data) = cnames[cols]
+      fit = nnet( form, weights=Weight, data=data, linout=TRUE, maxit=100000, size=size )
     }
     
     #Make predictions:
