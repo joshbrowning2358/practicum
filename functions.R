@@ -751,7 +751,8 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
       colnames(data) = cnames[cols]
       #Remove rows of data with small weights to speed up nnet
       data = data[data$Weight>min.wt*max(data$Weight),]
-      fit = nnet( form, weights=Weight, data=data, linout=TRUE, maxit=100000, size=size )
+      fit = nnet( form, weights=Weight, data=data, linout=TRUE, maxit=100000, size=size, trace=F )
+      if(fit$convergence!=0) warning("Neural network failed to converge!")
     }
     
     #Make predictions:
