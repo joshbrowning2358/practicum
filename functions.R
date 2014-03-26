@@ -666,9 +666,10 @@ sim_nnet = function(type, n, hidden, input){
 #chunk.rows: Controls how many rows are read at one time for the bigglm algorithm.
 #type: Should be either "GLM" or "nnet".  Either a linear regression or neural network model is then used.
 #size: How many hidden nodes to fit with nnet?  Ignored for type="GLM"
+#min.wt: What obs should be ignored?  Ignored if their weight is less than max(Weight)*min.wt (nnet only)
 weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
       ,price.decay=0.6, day.decay=1, time.decay=0.99999, outcry.decay=0.5, step.size=15*60
-      ,chunk.rows=25000, type="GLM", size=10){
+      ,chunk.rows=25000, type="GLM", size=10, min.wt=.1){
 
   #Put in a safety net to help keep R from crashing.  Running this with nnet and even a few predictors could take a LONG time.
   if(type=="nnet" & length(ind_vars)>10 ){
@@ -748,6 +749,8 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
       cols = c(cols, which(cnames=="Weight"))
       data = data.frame(d[filter,cols])
       colnames(data) = cnames[cols]
+      #Remove rows of data with small weights to speed up nnet
+      data = data[data$Weight>min.wt*max(data$Weight),]
       fit = nnet( form, weights=Weight, data=data, linout=TRUE, maxit=100000, size=size )
     }
     
@@ -755,6 +758,7 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
     pred.d = data.frame(d[pred.filter,col.inx]) #covariates used for predictions
     colnames(pred.d) = cnames[col.inx] #Give the covariates the correct colnames
     preds[pred.filter] = predict(fit, newdata=pred.d) #Update preds (in the correct rows) with the new predictions
+    print(paste0("Time ",i," completed out of total time ",max(time.loop)))
   }
   return(preds)
 }
