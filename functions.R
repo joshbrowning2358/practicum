@@ -57,7 +57,7 @@ eval_preds = function( preds, d, cnames, type, full=F ){
     } )
   
     #return performance aggregated by time and by current price
-    return( list( sqrt(d.agg.tot), d.agg.t, d.agg.p ) )
+    return( list( d.agg.tot, d.agg.day, d.agg.t, d.agg.p ) )
   }
   
   return(list(d.agg.tot,d.agg.day))
@@ -658,6 +658,7 @@ sim_nnet = function(type, n, hidden, input){
 #d: big.matrix object
 #ind_vars: names of variables to be used in the model
 #dep_var: Either "PriceDiff1SecAhead" or "PriceDiff60SecAhead"
+#cnames: column names for d
 #price_decay: How the case weights should decrease as a function of price level?  If the current price is $94, then observations at $95 and $93 will have weight 1*price.decay.
 #day.decay: How should the case weights decrease as a function of day?  For k days in the past, case weights are decayed by (day.decay)^k
 #time.decay: How should the case weights decrease as a function of time?  For k seconds in the past, case weights are decayed by (time.decay)^k
@@ -671,7 +672,12 @@ sim_nnet = function(type, n, hidden, input){
 weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
       ,price.decay=0.6, day.decay=1, time.decay=0.99999, outcry.decay=0.5, step.size=15*60
       ,chunk.rows=25000, type="GLM", size=10, min.wt=.1, repl=1){
-
+  
+  #Set up Start and results for output purposes:
+  Start = Sys.time()
+  results = read.csv(file="results.csv", stringsAsFactors=F)
+  ID = max(results$id)+1
+  
   #Put in a safety net to help keep R from crashing.  Running this with nnet and even a few predictors could take a LONG time.
   if(type=="nnet" & length(ind_vars)>10 ){
     are_u_sure = readline("Algorithm may take a very long time.  Are you sure you want to continue (1=Yes, 0=No)?")
@@ -771,5 +777,21 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
     preds[pred.filter] = predict(fit, newdata=pred.d) #Update preds (in the correct rows) with the new predictions
     print(paste0("Time ",i," completed out of total time ",max(time.loop)))
   }
+  
+  t = as.numeric(difftime(Sys.time(), Start, units="mins"))
+  if( dep_var %in% c("PriceDiff1SecAhead", "PriceDiff60SecAhead") ){
+    if(dep_var=="PriceDiff1SecAhead") perf=eval_preds(preds, d, cnames, 1, full=T)
+    if(dep_var=="PriceDiff60SecAhead") perf=eval_preds(preds, d, cnames, 60, full=T)
+  } else {
+    return(preds)
+  }
+  results = rbind(results, c(id=ID, ifelse(dep_var=="PriceDiff1SecAhead",1,60), type=type
+    ,ind_vars = paste(ind_vars,collapse=","), step.size=step.size, size=size, repl=repl
+    ,params=paste0("price.decay=",price.decay,",day.decay=",day.decay,",time.decay=",time.decay,",outcry.decay=",outcry.decay,",repl=",repl,",min.wt=",min.wt)
+    ,t=t, RMSE=perf[[1]], RMSE.W=perf[[2]][3,2], RMSE.R=perf[[2]][4,2], RMSE.F=perf[[2]][5,2] ) )
+  write.csv(results, "results.csv", row.names=F)
+  ggsave( paste0("ID=",id,"_time.png"), ggplot(perf[[3]], aes(x=time, y=Model.RMSE/Base.RMSE) ) + geom_point() )
+  ggsave( paste0("ID=",id,"_price.png"), ggplot(perf[[4]], aes(x=price, y=Model.RMSE/Base.RMSE) ) + geom_point() )
+  
   return(preds)
 }
