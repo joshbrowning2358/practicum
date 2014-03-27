@@ -790,8 +790,8 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
     ,params=paste0("price.decay=",price.decay,",day.decay=",day.decay,",time.decay=",time.decay,",outcry.decay=",outcry.decay,",repl=",repl,",min.wt=",min.wt)
     ,t=t, RMSE=perf[[1]], RMSE.W=perf[[2]][3,2], RMSE.R=perf[[2]][4,2], RMSE.F=perf[[2]][5,2] ) )
   write.csv(results, "results.csv", row.names=F)
-  ggsave( paste0("ID=",id,"_time.png"), ggplot(perf[[3]], aes(x=time, y=Model.RMSE/Base.RMSE) ) + geom_point() )
-  ggsave( paste0("ID=",id,"_price.png"), ggplot(perf[[4]], aes(x=price, y=Model.RMSE/Base.RMSE) ) + geom_point() )
+  ggsave( paste0("ID=",ID,"_time.png"), ggplot(perf[[3]], aes(x=time, y=Model.RMSE/Base.RMSE) ) + geom_point() )
+  ggsave( paste0("ID=",ID,"_price.png"), ggplot(perf[[4]], aes(x=price, y=Model.RMSE/Base.RMSE) ) + geom_point() )
   
   return(preds)
 }
