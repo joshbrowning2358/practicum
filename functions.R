@@ -45,14 +45,14 @@ eval_preds = function( preds, d, cnames, type, full=F ){
     #Aggregate performance over time:
     d.eval$time = floor( d.eval$time/15/60 )*15*60
     d.agg.t = ddply( d.eval, "time", function(df){
-      data.frame(Base.MSE=sqrt(mean(df$price_diff^2,na.rm=T))
+      data.frame(Base.RMSE=sqrt(mean(df$price_diff^2,na.rm=T))
         ,Model.RMSE = sqrt(mean(df$err^2,na.rm=T)) )
     } )
 
     #Aggregate performance over actual MicroPrice:
     d.eval$price = floor( d.eval$price*100 )/100
     d.agg.p = ddply( d.eval, "price", function(df){
-      data.frame(Base.MSE=sqrt(mean(df$price_diff^2,na.rm=T))
+      data.frame(Base.RMSE=sqrt(mean(df$price_diff^2,na.rm=T))
         ,Model.RMSE = sqrt(mean(df$err^2,na.rm=T)) )
     } )
   
