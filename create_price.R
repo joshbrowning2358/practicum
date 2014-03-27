@@ -119,6 +119,7 @@ rmCols = c(paste0("BidQuantity",1:5), paste0("BidNumberOfOrders",1:5), paste0("B
           ,paste0("BidHigh",1:5,"Cnt"), paste0("OfferLow",1:5,"Cnt"), "BidQuantityAdj", "OfferQuantityAdj")
 for(i in rmCols) price[,i] = NULL
 write.csv(price, "price_base_cols.csv", row.names=F)
+price = read.csv(file="price_base_cols.csv", row.names=F)
 
 ###############################################################################
 # Load data into a big matrix object
@@ -128,7 +129,7 @@ write.csv(price, "price_base_cols.csv", row.names=F)
 #(60+59)*2: 2 lag groups for trade vars
 #13: main columns (current variables, timestamp, etc.)
 #300: Extra columns, since you can't append more after creating (AFAIK)
-d = big.matrix( nrow=nrow(price), ncol=(20+14+14+19)*5+(20+19)*2+ncol(price)+300, backingfile="model_matrix" )
+d = big.matrix( nrow=nrow(price), ncol=(20+18+18+19)*5+(20+19)*2+ncol(price)+20, backingfile="model_matrix" )
 index = 1 #Specifies column of d that's being loaded
 cnames = c()
 for( i in 1:ncol(price) ){
@@ -138,35 +139,35 @@ for( i in 1:ncol(price) ){
 }
 
 # Lagged MicroPrice adjusted using linear model
-for( lag in c(1:20*.01,7:20*.1,7:20,2:20*60 ) ){
+for( lag in c(1:20*.01,3:20*.1,3:20,2:20*60 ) ){
   d[,index] = load_lag_price(price[,c("Time","MicroPriceAdj")], lags=lag)
   cnames[index] = paste0("Lag_",lag,"_MicroPriceAdj")
   index = index + 1
 }
 
 # Lagged Log( Order Book Imbalance ) for provided bids/offers
-for( lag in c(1:20*.01,7:20*.1,7:20,2:20*60 ) ){
+for( lag in c(1:20*.01,3:20*.1,3:20,2:20*60 ) ){
   d[,index] = load_lag_price(price[,c("Time","LogBookImb")], lags=lag)
   cnames[index] = paste0("Lag_",lag,"_LogBookImb")
   index = index + 1
 }
 
 # Lagged Log( Order Book Imbalance ) for just the inside bid and offer
-for( lag in c(1:20*.01,7:20*.1,7:20,2:20*60 ) ){
+for( lag in c(1:20*.01,3:20*.1,3:20,2:20*60 ) ){
   d[,index] = load_lag_price(price[,c("Time","LogBookImbInside")], lags=lag)
   cnames[index] = paste0("Lag_",lag,"_LogBookImbInside")
   index = index + 1
 }
 
 # Lagged BidQRatio
-for( lag in c(1:20*.01,7:20*.1,7:20,2:20*60 ) ){
+for( lag in c(1:20*.01,3:20*.1,3:20,2:20*60 ) ){
   d[,index] = load_lag_price(price[,c("Time","BidQRatio")], lags=lag)
   cnames[index] = paste0("Lag_",lag,"_BidQRatio")
   index = index + 1
 }
 
 # Lagged BidQRatio
-for( lag in c(1:20*.01,7:20*.1,7:20,2:20*60 ) ){
+for( lag in c(1:20*.01,3:20*.1,3:20,2:20*60 ) ){
   d[,index] = load_lag_price(price[,c("Time","Width")], lags=lag)
   cnames[index] = paste0("Lag_",lag,"_Width")
   index = index + 1
