@@ -708,6 +708,8 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
     }
     if(skip.rows>=nrow(d)-1) return(NULL)
     out = data.frame( d[row.inx,col.inx] )
+    #Filter out NA rows:
+    out = out[apply(out,1,function(x){sum(is.na(x))})==0,]
     colnames(out) = cnames[col.inx]
     skip.rows <<- skip.rows + chunk.rows
     #Stop processing once filter becomes F (i.e. reached end of training set)
