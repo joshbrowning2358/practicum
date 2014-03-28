@@ -690,7 +690,7 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
   #Note: outcry starts at 6:45 and ends at 1:30.  If step.size is such that 6:45 and 1:30 are not
   #divisible by it, then you may have weird estimates on those boundaries (since outcry is assumed
   #to be on or off over the whole step.size period).
-  if(any(round(c(6.75,13.5)*60*60/step.size)!=round(c(6.75,13.5)*60*60/step.size)))
+  if(any(round(c(6.75,13.5)*60*60/step.size)!=round(c(6.75,13.5)*60*60/step.size)) & outcry.decay!=1)
     warning("Step size may lead to invalid predictions as it doesn't split outcry hours well!")
 
   #Reorder ind_var_names (sort based on cnames for easy prediction):
@@ -768,7 +768,8 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
         if(fit$value<bestfit$value) bestfit=fit
         j = j+1
       }
-      if(fit$convergence!=0) warning("Neural network failed to converge!")
+      if(bestfit$convergence!=0) warning("Neural network failed to converge!")
+      fit = bestfit
     }
     
     #Make predictions:
