@@ -679,16 +679,16 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
   results = read.csv(file="results.csv", stringsAsFactors=F)
   ID = max(results$id)+1
   
-  #Put in a safety net to help keep R from crashing.  Running this with nnet and even a few predictors could take a LONG time.
+  #Put in a safety net to help keep R from crashing. Running this with nnet and even a few predictors could take a LONG time.
   if(type=="nnet" & length(ind_vars)>10 ){
-    are_u_sure = readline("Algorithm may take a very long time.  Are you sure you want to continue (1=Yes, 0=No)?")
+    are_u_sure = readline("Algorithm may take a very long time. Are you sure you want to continue (1=Yes, 0=No)?")
     if(are_u_sure!=1) stop("Algorithm aborted by user")
   }
   if( !all(ind_vars %in% cnames) ){
     stop("Not all variables in ind_vars are in cnames")
   }
 
-  #Note: outcry starts at 6:45 and ends at 1:30.  If step.size is such that 6:45 and 1:30 are not
+  #Note: outcry starts at 6:45 and ends at 1:30. If step.size is such that 6:45 and 1:30 are not
   #divisible by it, then you may have weird estimates on those boundaries (since outcry is assumed
   #to be on or off over the whole step.size period).
   if(any(round(c(6.75,13.5)*60*60/step.size)!=round(c(6.75,13.5)*60*60/step.size)) & outcry.decay!=1)
@@ -700,7 +700,7 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
   col.inx = c(col.inx, rep(F,ncol(d)-length(cnames)))
   preds = rep(0,nrow(d))
 
-  #Define function to read data.  This is needed for the bigglm model.  This function should return NULL when passed TRUE (and 
+  #Define function to read data. This is needed for the bigglm model. This function should return NULL when passed TRUE (and
   #reset the point we're reading from) and should return the next chunk of data when passed FALSE.
   read.d = function(reset){
     if(reset){
@@ -737,7 +737,7 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
     #If MicroPrice is NA on some row, don't predict for that row (this code generates a warning without this)
     pred.filter = pred.filter & !is.na(d[,which(cnames=="MicroPrice")])
     #Update the case weights:
-    d[filter,which(cnames=="Weight")] = 
+    d[filter,which(cnames=="Weight")] =
       #Use the last observed MicroPriceAdj and compare that to all MicroPrices (larger diff=>smaller weight)
       price.decay^(abs(d[filter,which(cnames=="MicroPriceAdj")][sum(filter)]-d[filter,which(cnames=="MicroPriceAdj")]))*
       #Use the first time and compare that to all times (larger diff=>smaller weight)
@@ -753,7 +753,7 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
     #Fit a GLM if that's what's desired:
     if(type=="GLM") fit = bigglm( form, read.d, weights=Weight~1 )
 
-    #Fit a neural network if that's what's desired.  Note: the necessary data matrix is brought into RAM in this case.  Be careful!
+    #Fit a neural network if that's what's desired. Note: the necessary data matrix is brought into RAM in this case. Be careful!
     if(type=="nnet"){
       cols = which(cnames %in% c(dep_var,ind_vars))
       cols = c(cols, which(cnames=="Weight"))
@@ -772,7 +772,19 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
       if(bestfit$convergence!=0) warning("Neural network failed to converge!")
       fit = bestfit
     }
-    
+
+    #Fit a GAM if that's what's desired:
+    if(type=="gam"){
+      form = as.formula( paste0( dep_var, "~ s(", paste(ind_vars,collapse=")+s("), ")" ) )
+      cols = which(cnames %in% c(dep_var,ind_vars))
+      cols = c(cols, which(cnames=="Weight"))
+      data = data.frame(d[filter,cols])
+      colnames(data) = cnames[cols]
+      #Remove rows of data with small weights to speed up gam
+      data = data[data$Weight>min.wt*max(data$Weight),]
+      fit = gam( form, data=data, weights=Weight )
+    }
+
     #Make predictions:
     pred.d = data.frame(d[pred.filter,col.inx]) #covariates used for predictions
     colnames(pred.d) = cnames[col.inx] #Give the covariates the correct colnames
