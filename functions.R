@@ -17,6 +17,7 @@ library(biglm)
 library(bigmemory)
 library(sqldf)
 library(nnet)
+library(mgcv)
 
 #preds should be a vector that has a length=nrow(d).  It contains prediction values for the days/times of interest.
 #d should be the big.matrix object.
