@@ -26,7 +26,7 @@ library(nnet)
 eval_preds = function( preds, d, cnames, type, full=F ){
   if( any(is.na(preds)) ){
     warning(paste0("No NAs allowed in predictions!  ",sum(is.na(preds))," NA's replaced with MicroPrice at that time."))
-    preds[is.na(preds)] = price[is.na(preds)]
+    preds[is.na(preds)] = d[is.na(preds),which(cnames=="MicroPrice")]
   }
   eval.rows = d[,which(cnames=="Diff")]==1
   if(type==1) price_diff = d[,which(cnames=="PriceDiff1SecAhead")]
