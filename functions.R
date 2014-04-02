@@ -346,89 +346,91 @@ create.read.f = function(filename,chunk.rows=100){
 #summary(fit.big)
 #summary(fit)
 
-#To bring in lagged times, use Rcpp (so you can loop efficiently):
-#prices (the input, must be a matrix) should be two columns: time (numeric, in seconds) and variable to lag.
-#Outputs shift_price, a matrix, which contains lagged values at 1s, 2s, 3s, 4s, 5s.
-#6 indicators:
-#i: Current row of matrix.  Take this microprice and impute it ahead 1s, 2s, 3s, 4s, 5s
-#secj, j=1:5: Index of row corresponding to j seconds ahead of ith row.  Increments up as i increments
-load_lag_price_cxx = cxxfunction(signature(prices="numeric", lags="numeric"), plugin="RcppArmadillo", body="
-  arma::mat price = Rcpp::as<arma::mat>(prices);
-  arma::mat lag = Rcpp::as<arma::mat>(lags);
-  int n = price.n_rows;
-  int m = lag.n_rows;
-  arma::mat shift_price(n,m);
-  int secArray [m];
-  for( int i=0; i<m; i++ ) secArray[i] = 1;
-  for( int i=0; i<n; i++ ){
-    for( int j=0; j<m; j++ ){
-      while(price(i,0) - price(secArray[j],0) > lag[j] && secArray[j] < n-1) secArray[j]++;
-      shift_price(i,j) = price(secArray[j],1);
+if( Sys.info()[4]!="JOSH_LAPTOP" ){
+  #To bring in lagged times, use Rcpp (so you can loop efficiently):
+  #prices (the input, must be a matrix) should be two columns: time (numeric, in seconds) and variable to lag.
+  #Outputs shift_price, a matrix, which contains lagged values at 1s, 2s, 3s, 4s, 5s.
+  #6 indicators:
+  #i: Current row of matrix.  Take this microprice and impute it ahead 1s, 2s, 3s, 4s, 5s
+  #secj, j=1:5: Index of row corresponding to j seconds ahead of ith row.  Increments up as i increments
+  load_lag_price_cxx = cxxfunction(signature(prices="numeric", lags="numeric"), plugin="RcppArmadillo", body="
+    arma::mat price = Rcpp::as<arma::mat>(prices);
+    arma::mat lag = Rcpp::as<arma::mat>(lags);
+    int n = price.n_rows;
+    int m = lag.n_rows;
+    arma::mat shift_price(n,m);
+    int secArray [m];
+    for( int i=0; i<m; i++ ) secArray[i] = 1;
+    for( int i=0; i<n; i++ ){
+      for( int j=0; j<m; j++ ){
+        while(price(i,0) - price(secArray[j],0) > lag[j] && secArray[j] < n-1) secArray[j]++;
+        shift_price(i,j) = price(secArray[j],1);
+      }
     }
+    return Rcpp::wrap(shift_price);"
+  )
+  
+  load_lag_price = function(prices, lags){
+    if(is.data.frame(prices)) prices = as.matrix(prices)
+    if(!is.matrix(prices)) stop("Input must be a matrix")
+    if(ncol(prices)!=2) stop("Input has wrong number of columns.  Should be time, variable to lag.")
+    if(is.numeric(lags)) lags = matrix(lags)
+    if(!is.matrix(lags)) stop("Lags must be a list or a matrix!")
+    if(ncol(lags)!=1) stop("Lags must have only one column!")
+    out = load_lag_price_cxx(prices, lags)
+    for(i in 1:length(lags)) out[prices[,1]<lags[i],i] = NA
+    if( is.null(colnames(prices)[2]) ) colnames(prices)[2] = "Var"
+    colnames(out) = paste0("Lag_",lags,"_",colnames(prices)[2])
+    return(out)
   }
-  return Rcpp::wrap(shift_price);"
-)
-
-load_lag_price = function(prices, lags){
-  if(is.data.frame(prices)) prices = as.matrix(prices)
-  if(!is.matrix(prices)) stop("Input must be a matrix")
-  if(ncol(prices)!=2) stop("Input has wrong number of columns.  Should be time, variable to lag.")
-  if(is.numeric(lags)) lags = matrix(lags)
-  if(!is.matrix(lags)) stop("Lags must be a list or a matrix!")
-  if(ncol(lags)!=1) stop("Lags must have only one column!")
-  out = load_lag_price_cxx(prices, lags)
-  for(i in 1:length(lags)) out[prices[,1]<lags[i],i] = NA
-  if( is.null(colnames(prices)[2]) ) colnames(prices)[2] = "Var"
-  colnames(out) = paste0("Lag_",lags,"_",colnames(prices)[2])
-  return(out)
-}
-
-#Check code works:
-#lags = load_lag_price( price[1:10000,c("Time","MicroPrice")], lags=1:10 )
-#lags = data.frame( price[1:10000,c("Time","MicroPrice")], lags)
-#toPlot = melt(lags, id.var="Time")
-#ggplot(toPlot[toPlot$Time<=120,], aes(x=Time, y=value, color=variable, group=variable) ) + geom_line()
-
-# prices has 1 column: time
-# orders has 4 columns: time, 0=BUY/1=SELL, price, units
-# output has 5 columns: # of trades in last Lag seconds, # of SELL trades, # of units traded, # of SELL units
-# Variable i keeps track of row of price
-# Variable iLag keeps track of Lag seconds back row of orders
-# Variable iCurr keeps track of first row of orders that has a time greater than price(i,0)
-load_lag_trades_cxx = cxxfunction(signature(prices="numeric", orders="numeric", lags="numeric"), plugin="RcppArmadillo", body="
-  arma::mat price = Rcpp::as<arma::mat>(prices);
-  arma::mat order = Rcpp::as<arma::mat>(orders);
-  int n = price.n_rows;
-  int m = order.n_rows;
-  double lag = Rcpp::as<double>(lags);
-  arma::mat output(n,4);
-  int iLag(0), iCurr(0);
-  for( int i=0; i<n; i++){
-    while( price(i,0) > order(iLag,0) + lag && iLag < m-1) iLag++; //iterate iLag until it's within Lag seconds of price's time
-    while( price(i,0) >= order(iCurr,0)  && iCurr < m-1 ) iCurr++;
-    output(i,0) = iCurr-iLag;
-    output(i,1) = 0;
-    output(i,2) = 0;
-    output(i,3) = 0;
-    for( int j=iLag; j<iCurr; j++){
-      output(i,1) = output(i,1) + order(j,1);
-      output(i,2) = output(i,2) + order(j,3);
-      output(i,3) = output(i,3) + order(j,3)*order(j,1);
+  
+  #Check code works:
+  #lags = load_lag_price( price[1:10000,c("Time","MicroPrice")], lags=1:10 )
+  #lags = data.frame( price[1:10000,c("Time","MicroPrice")], lags)
+  #toPlot = melt(lags, id.var="Time")
+  #ggplot(toPlot[toPlot$Time<=120,], aes(x=Time, y=value, color=variable, group=variable) ) + geom_line()
+  
+  # prices has 1 column: time
+  # orders has 4 columns: time, 0=BUY/1=SELL, price, units
+  # output has 5 columns: # of trades in last Lag seconds, # of SELL trades, # of units traded, # of SELL units
+  # Variable i keeps track of row of price
+  # Variable iLag keeps track of Lag seconds back row of orders
+  # Variable iCurr keeps track of first row of orders that has a time greater than price(i,0)
+  load_lag_trades_cxx = cxxfunction(signature(prices="numeric", orders="numeric", lags="numeric"), plugin="RcppArmadillo", body="
+    arma::mat price = Rcpp::as<arma::mat>(prices);
+    arma::mat order = Rcpp::as<arma::mat>(orders);
+    int n = price.n_rows;
+    int m = order.n_rows;
+    double lag = Rcpp::as<double>(lags);
+    arma::mat output(n,4);
+    int iLag(0), iCurr(0);
+    for( int i=0; i<n; i++){
+      while( price(i,0) > order(iLag,0) + lag && iLag < m-1) iLag++; //iterate iLag until it's within Lag seconds of price's time
+      while( price(i,0) >= order(iCurr,0)  && iCurr < m-1 ) iCurr++;
+      output(i,0) = iCurr-iLag;
+      output(i,1) = 0;
+      output(i,2) = 0;
+      output(i,3) = 0;
+      for( int j=iLag; j<iCurr; j++){
+        output(i,1) = output(i,1) + order(j,1);
+        output(i,2) = output(i,2) + order(j,3);
+        output(i,3) = output(i,3) + order(j,3)*order(j,1);
+      }
     }
+    return(wrap(output));
+  "
+  )
+  
+  load_lag_trades = function( price, orders, lag=60 ){
+    price_mat = as.matrix( price$Time )
+    orders_agg = ddply( orders, c("Time", "RestingSide", "TradePrice"), function(df)sum(df$TradeQuantity) )
+    colnames(orders_agg)[4] = "Units"
+    orders_agg$RestingSide = as.numeric( orders_agg$RestingSide=="SELL")
+    output = load_lag_trades_cxx(prices=matrix(price$Time), orders=as.matrix(orders_agg), lags=lag )
+    output = data.frame(output)
+    colnames(output) = paste0(c("Trades_Lag_", "SELLs_Lag_", "Units_Lag_", "Units_SELL_Lag_"), lag, "s" )
+    return(output)
   }
-  return(wrap(output));
-"
-)
-
-load_lag_trades = function( price, orders, lag=60 ){
-  price_mat = as.matrix( price$Time )
-  orders_agg = ddply( orders, c("Time", "RestingSide", "TradePrice"), function(df)sum(df$TradeQuantity) )
-  colnames(orders_agg)[4] = "Units"
-  orders_agg$RestingSide = as.numeric( orders_agg$RestingSide=="SELL")
-  output = load_lag_trades_cxx(prices=matrix(price$Time), orders=as.matrix(orders_agg), lags=lag )
-  output = data.frame(output)
-  colnames(output) = paste0(c("Trades_Lag_", "SELLs_Lag_", "Units_Lag_", "Units_SELL_Lag_"), lag, "s" )
-  return(output)
 }
 
 #Sample run of neural network code:
