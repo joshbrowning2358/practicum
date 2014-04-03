@@ -748,6 +748,7 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
       outcry.decay^(abs(d[sum(filter)+1,which(cnames=="Outcry")]-d[filter,which(cnames=="Outcry")]))*
       #Use the day for the first prediction obs and compare that to all days (larger diff=>smaller weight)
       day.decay^(abs(d[sum(filter)+1,which(cnames=="day")]-d[filter,which(cnames=="day")]))
+    d[filter,which(cnames=="Weight")] = d[filter,which(cnames=="Weight")]/max(d[filter,which(cnames=="Weight")])
 
     #Clear out all the other weights, just in case:
     d[!filter,which(cnames=="Weight")] = 0
