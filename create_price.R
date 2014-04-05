@@ -88,6 +88,11 @@ price$MicroPriceAdj = price$MicroPriceAdj + price$MicroPrice
 price$LogBookImb = log( (price$BidQuantity1 + price$BidQuantity2 + price$BidQuantity3 + price$BidQuantity4 + price$BidQuantity5)
   / (price$OfferQuantity1 + price$OfferQuantity2 + price$OfferQuantity3 + price$OfferQuantity4 + price$OfferQuantity5) )
 price$LogBookImbInside = log( price$BidQuantity1 / price$OfferQuantity1 )
+
+price$MicroPriceAdjClip = ifelse(price$MicroPriceAdj<price$BidPrice1,price$BidPrice1
+                         ,ifelse(price$MicroPriceAdj>price$OfferPrice1,price$OfferPrice1
+                         ,price$MicroPriceAdj))
+
 #The MicroPriceAdjExp didn't seem as useful...
 #price$BidQuantityAdj = as.numeric( cbind(price$BidHigh1Cnt, price$BidHigh2Cnt, price$BidHigh3Cnt, price$BidHigh4Cnt, price$BidHigh5Cnt) %*% 2^(0:-4) )
 #price$OfferQuantityAdj = as.numeric( cbind(price$OfferLow1Cnt, price$OfferLow2Cnt, price$OfferLow3Cnt, price$OfferLow4Cnt, price$OfferLow5Cnt) %*% 2^(0:-4) )
@@ -114,9 +119,9 @@ ggplot(price[sample(1:nrow(price),size=100000),], aes(x=MicroPriceAdjExp, y=Micr
 #price$Spread = price$OfferPrice1 - price$BidPrice1
 
 #Remove unneccesary columns:
-rmCols = c(paste0("BidQuantity",1:5), paste0("BidNumberOfOrders",1:5), paste0("BidPrice",1:5)
-          ,paste0("OfferQuantity",1:5), paste0("OfferNumberOfOrders",1:5), paste0("OfferPrice",1:5)
-          ,paste0("BidHigh",1:5,"Cnt"), paste0("OfferLow",1:5,"Cnt"), "BidQuantityAdj", "OfferQuantityAdj")
+rmCols = c(#paste0("BidQuantity",1:5), paste0("BidNumberOfOrders",1:5), paste0("BidPrice",1:5)
+          #,paste0("OfferQuantity",1:5), paste0("OfferNumberOfOrders",1:5), paste0("OfferPrice",1:5),
+          paste0("BidHigh",1:5,"Cnt"), paste0("OfferLow",1:5,"Cnt"), "BidQuantityAdj", "OfferQuantityAdj")
 for(i in rmCols) price[,i] = NULL
 write.csv(price, "price_base_cols.csv", row.names=F)
 price = read.csv(file="price_base_cols.csv")
@@ -125,10 +130,9 @@ price = read.csv(file="price_base_cols.csv")
 # Load data into a big matrix object
 ###############################################################################
 
-#(60+54+54+59)*5: 4 different lag groups for main vars
-#(60+59)*2: 2 lag groups for trade vars
-#13: main columns (current variables, timestamp, etc.)
-#300: Extra columns, since you can't append more after creating (AFAIK)
+#(60+19)*7: 7 different lag groups for main vars
+#ncol(price): main columns (current variables, timestamp, etc.)
+#20: Extra columns, since you can't append more after creating (AFAIK)
 d = big.matrix( nrow=nrow(price), ncol=(60+19)*7+ncol(price)+20, backingfile="model_matrix" )
 index = 1 #Specifies column of d that's being loaded
 cnames = c()
