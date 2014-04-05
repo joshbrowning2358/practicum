@@ -778,13 +778,23 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
 
     #Fit a GAM if that's what's desired:
     if(type=="gam"){
-      form = as.formula( paste0( dep_var, "~ s(", paste(ind_vars,collapse=")+s("), ")" ) )
       cols = which(cnames %in% c(dep_var,ind_vars))
       cols = c(cols, which(cnames=="Weight"))
       data = data.frame(d[filter,cols])
       colnames(data) = cnames[cols]
       #Remove rows of data with small weights to speed up gam
       data = data[data$Weight>min.wt*max(data$Weight),]
+      form = paste0( dep_var, "~ ")
+      #Build the formula:
+      for( j in ind_vars ){
+        #Use a linear term if you don't have enough unique values:
+        if(length(unique(data[,j]))<=5)
+          form = paste0(form, j, "+")
+        else
+          form = paste0(form, "s(", j, ") +")
+      }
+      #Remove the trailing "+", convert to formula:
+      form = as.formula( gsub("\\+$","",form) )
       fit = gam( form, data=data, weights=Weight )
     }
 
