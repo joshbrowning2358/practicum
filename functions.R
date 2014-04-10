@@ -15,7 +15,7 @@ library(scales)
 #library(neuralnet)
 library(biglm)
 library(bigmemory)
-library(sqldf)
+#library(sqldf)
 library(nnet)
 library(mgcv)
 
