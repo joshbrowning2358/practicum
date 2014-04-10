@@ -674,8 +674,8 @@ sim_nnet = function(type, n, hidden, input){
 #min.wt: What obs should be ignored?  Ignored if their weight is less than max(Weight)*min.wt (nnet only)
 #repl: How many neural networks (with randomized weights) should be fit?  The network with best fit on training data is kept.  Ignored for type!="nnet"
 weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
-                          ,price.decay=1, day.decay=1, time.decay=0.99999, outcry.decay=0.5, step.size=15*60
-                          ,chunk.rows=25000, type="GLM", size=10, min.wt=.1, repl=1, combine.method=mean){
+                          ,price.decay=1, day.decay=1, time.decay=0.99999, outcry.decay=0.5, step.size=2.25*60*60
+                          ,chunk.rows=25000, type="GLM", size=10, min.wt=0, repl=5, combine.method=mean){
   #Check for results.csv, if it doesn't exist then create it:
   if( !any( list.files()=="results.csv") ){
     pred.1 = eval_preds(0,d,cnames,type=1)
