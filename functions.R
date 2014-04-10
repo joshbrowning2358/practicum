@@ -691,10 +691,10 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
   ID = max(results$id)+1
   
   #Put in a safety net to help keep R from crashing. Running this with nnet and even a few predictors could take a LONG time.
-  if(type=="nnet" & length(ind_vars)>10 ){
-    are_u_sure = readline("Algorithm may take a very long time. Are you sure you want to continue (1=Yes, 0=No)?")
-    if(are_u_sure!=1) stop("Algorithm aborted by user")
-  }
+#  if(type=="nnet" & length(ind_vars)>10 ){
+#    are_u_sure = readline("Algorithm may take a very long time. Are you sure you want to continue (1=Yes, 0=No)?")
+#    if(are_u_sure!=1) stop("Algorithm aborted by user")
+#  }
   if( !all(ind_vars %in% cnames) ){
     stop("Not all variables in ind_vars are in cnames")
   }
