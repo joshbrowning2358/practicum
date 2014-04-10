@@ -38,7 +38,7 @@ eval_preds = function( preds, d, cnames, type, full=F ){
   day = d[,which(cnames=="day")]
   d.eval = data.frame( err=preds-price_diff, time, price, price_diff, day )
   d.eval = d.eval[eval.rows,]
-
+  
   d.agg.tot = sqrt(mean(d.eval$err[d.eval$day %in% c(3,4)]^2, na.rm=T))
   d.agg.day = ddply(d.eval, "day", function(df){sqrt(mean(df$err^2, na.rm=T))})
   
@@ -47,16 +47,16 @@ eval_preds = function( preds, d, cnames, type, full=F ){
     d.eval$time = floor( d.eval$time/15/60 )*15*60
     d.agg.t = ddply( d.eval, "time", function(df){
       data.frame(Base.RMSE=sqrt(mean(df$price_diff^2,na.rm=T))
-        ,Model.RMSE = sqrt(mean(df$err^2,na.rm=T)) )
+                 ,Model.RMSE = sqrt(mean(df$err^2,na.rm=T)) )
     } )
-
+    
     #Aggregate performance over actual MicroPrice:
     d.eval$price = floor( d.eval$price*100 )/100
     d.agg.p = ddply( d.eval, "price", function(df){
       data.frame(Base.RMSE=sqrt(mean(df$price_diff^2,na.rm=T))
-        ,Model.RMSE = sqrt(mean(df$err^2,na.rm=T)) )
+                 ,Model.RMSE = sqrt(mean(df$err^2,na.rm=T)) )
     } )
-  
+    
     #return performance aggregated by time and by current price
     return( list( d.agg.tot, d.agg.day, d.agg.t, d.agg.p ) )
   }
@@ -74,10 +74,10 @@ eval_print = function( preds, price_diff=d[,5], price=d[,2], time=d[,1] ){
   d.eval = data.frame( err=preds-price_diff, time, price, price_diff )
   d.eval = d.eval[eval.rows,]
   d.eval$day = ifelse( d.eval$time < 24*60*60, "Monday"
-       ,ifelse( d.eval$time < 48*60*60, "Tuesday"
-       ,ifelse( d.eval$time < 72*60*60, "Wednesday"
-       ,ifelse( d.eval$time < 96*60*60, "Thursday"
-       ,ifelse( d.eval$time < 120*60*60, "Friday", "Error" ) ) ) ) )
+                       ,ifelse( d.eval$time < 48*60*60, "Tuesday"
+                                ,ifelse( d.eval$time < 72*60*60, "Wednesday"
+                                         ,ifelse( d.eval$time < 96*60*60, "Thursday"
+                                                  ,ifelse( d.eval$time < 120*60*60, "Friday", "Error" ) ) ) ) )
   if( any(d.eval$day %in% c("Error")) ) stop("Bad times: Out of range")
   d.eval$day = factor(d.eval$day, levels=c("Monday","Tuesday","Wednesday","Thursday","Friday"))
   out = ddply( d.eval, "day", function(x){
@@ -102,7 +102,7 @@ eval_print = function( preds, price_diff=d[,5], price=d[,2], time=d[,1] ){
 #print: how many times should the function print the current fit number and LMS?
 #...: other parameters to be passed into newff or train in the AMORE package.
 fit.nn = function( form, data, hidden, steps=1000, print=10, learning.rate.global=1e-2, momentum.global=.5, report=T
-      ,error.criterium="LMS", Stao=NA, hidden.layer="tansig", output.layer="purelin", method="ADAPTgdwm" ){
+                   ,error.criterium="LMS", Stao=NA, hidden.layer="tansig", output.layer="purelin", method="ADAPTgdwm" ){
   #Parse the form object to determine number of input neurons and relevant data
   if( !is.formula(form) ) stop("Formula incorrectly specified")
   form = as.character( form )
@@ -118,10 +118,10 @@ fit.nn = function( form, data, hidden, steps=1000, print=10, learning.rate.globa
   
   #Fit the neural network
   mod = newff( n.neurons=c(length(depCols)+1,hidden,1), learning.rate.global=1e-2, momentum.global=0.5,
-    error.criterium="LMS", Stao=NA, hidden.layer="tansig",
-    output.layer="purelin", method="ADAPTgdwm")
+               error.criterium="LMS", Stao=NA, hidden.layer="tansig",
+               output.layer="purelin", method="ADAPTgdwm")
   mod.fit = train( mod, T=as.matrix(data[,indCol]), P=cbind(1,data[,depCols]), n.shows=print, show.step=steps/print, report=report )
-
+  
   #Pull off the output weights
   weights = lapply( mod.fit$net$neurons, function(x)x$weights )
   hidden.wts = do.call( "rbind", weights[1:hidden] )
@@ -130,7 +130,7 @@ fit.nn = function( form, data, hidden, steps=1000, print=10, learning.rate.globa
 }
 
 fit.glmnet = function(form, data, lambda=1*(0.9)^(0:100), family=c("gaussian","binomial","poisson","multinomial","cox","mgaussian")
-  ,alpha = 1, nlambda = 100, maxit=100000 ){
+                      ,alpha = 1, nlambda = 100, maxit=100000 ){
   #Parse the form object to determine number of input neurons and relevant data
   if( !is.formula(form) ) stop("Formula incorrectly specified")
   form = as.character( form )
@@ -203,7 +203,7 @@ cvModel = function(d, cvGroup, indCol, model="neuralnet(Y ~ X1 + X2 + X3 + X4 + 
   for( i in sort(unique(cvGroup[cvGroup>0])) ){
     train = d[!cvGroup %in% c(-1,i),]
     predict = d[cvGroup %in% c(-1,i),-indCol]
-
+    
     #Evaluate the model
     fit = eval( parse( text=model) )
     
@@ -268,14 +268,14 @@ cvModel = function(d, cvGroup, indCol, model="neuralnet(Y ~ X1 + X2 + X3 + X4 + 
   if(length(mods)==0) return(ensem)
   return(list(ensemble=ensem, models=mods))
 }
-  
+
 #This function fits cross-validated models using the bigglm package.
 #ind_var_names: Names of variables to use in model
 #d: big.matrix object containing the data
 #cnames: column names for d
 #chunk.rows: How many rows should be processed at a time?  25,000 seems like an optimal choice based on a few tests.
 cvModel.bigglm = function(ind_var_names, d, cnames, chunk.rows=25000
-    ,dep_var="PriceDiff1SecAhead", filter=rep(T,nrow(d))){
+                          ,dep_var="PriceDiff1SecAhead", filter=rep(T,nrow(d))){
   #Clean up ind_var_names
   if(any(!c("MicroPriceAdj","LogBookImb","LogBookImbInside","MicroPriceAdjExp") %in% ind_var_names)){
     print("Warning: Not including one/some of the base columns!")
@@ -346,7 +346,8 @@ create.read.f = function(filename,chunk.rows=100){
 #summary(fit.big)
 #summary(fit)
 
-if( Sys.info()[4]!="JOSH_LAPTOP" ){
+#Don't run the Rcpp code if you're on Windows, unless you're on version 2.15.3
+if( Sys.info()[1]!="Windows" | (version$major=="2" & version$minor=="15.3") ){
   #To bring in lagged times, use Rcpp (so you can loop efficiently):
   #prices (the input, must be a matrix) should be two columns: time (numeric, in seconds) and variable to lag.
   #Outputs shift_price, a matrix, which contains lagged values at 1s, 2s, 3s, 4s, 5s.
@@ -354,20 +355,20 @@ if( Sys.info()[4]!="JOSH_LAPTOP" ){
   #i: Current row of matrix.  Take this microprice and impute it ahead 1s, 2s, 3s, 4s, 5s
   #secj, j=1:5: Index of row corresponding to j seconds ahead of ith row.  Increments up as i increments
   load_lag_price_cxx = cxxfunction(signature(prices="numeric", lags="numeric"), plugin="RcppArmadillo", body="
-    arma::mat price = Rcpp::as<arma::mat>(prices);
-    arma::mat lag = Rcpp::as<arma::mat>(lags);
-    int n = price.n_rows;
-    int m = lag.n_rows;
-    arma::mat shift_price(n,m);
-    int secArray [m];
-    for( int i=0; i<m; i++ ) secArray[i] = 1;
-    for( int i=0; i<n; i++ ){
-      for( int j=0; j<m; j++ ){
-        while(price(i,0) - price(secArray[j],0) > lag[j] && secArray[j] < n-1) secArray[j]++;
-        shift_price(i,j) = price(secArray[j],1);
-      }
-    }
-    return Rcpp::wrap(shift_price);"
+                                   arma::mat price = Rcpp::as<arma::mat>(prices);
+                                   arma::mat lag = Rcpp::as<arma::mat>(lags);
+                                   int n = price.n_rows;
+                                   int m = lag.n_rows;
+                                   arma::mat shift_price(n,m);
+                                   int secArray [m];
+                                   for( int i=0; i<m; i++ ) secArray[i] = 1;
+                                   for( int i=0; i<n; i++ ){
+                                   for( int j=0; j<m; j++ ){
+                                   while(price(i,0) - price(secArray[j],0) > lag[j] && secArray[j] < n-1) secArray[j]++;
+                                   shift_price(i,j) = price(secArray[j],1);
+                                   }
+                                   }
+                                   return Rcpp::wrap(shift_price);"
   )
   
   load_lag_price = function(prices, lags){
@@ -397,28 +398,28 @@ if( Sys.info()[4]!="JOSH_LAPTOP" ){
   # Variable iLag keeps track of Lag seconds back row of orders
   # Variable iCurr keeps track of first row of orders that has a time greater than price(i,0)
   load_lag_trades_cxx = cxxfunction(signature(prices="numeric", orders="numeric", lags="numeric"), plugin="RcppArmadillo", body="
-    arma::mat price = Rcpp::as<arma::mat>(prices);
-    arma::mat order = Rcpp::as<arma::mat>(orders);
-    int n = price.n_rows;
-    int m = order.n_rows;
-    double lag = Rcpp::as<double>(lags);
-    arma::mat output(n,4);
-    int iLag(0), iCurr(0);
-    for( int i=0; i<n; i++){
-      while( price(i,0) > order(iLag,0) + lag && iLag < m-1) iLag++; //iterate iLag until it's within Lag seconds of price's time
-      while( price(i,0) >= order(iCurr,0)  && iCurr < m-1 ) iCurr++;
-      output(i,0) = iCurr-iLag;
-      output(i,1) = 0;
-      output(i,2) = 0;
-      output(i,3) = 0;
-      for( int j=iLag; j<iCurr; j++){
-        output(i,1) = output(i,1) + order(j,1);
-        output(i,2) = output(i,2) + order(j,3);
-        output(i,3) = output(i,3) + order(j,3)*order(j,1);
-      }
-    }
-    return(wrap(output));
-  "
+                                    arma::mat price = Rcpp::as<arma::mat>(prices);
+                                    arma::mat order = Rcpp::as<arma::mat>(orders);
+                                    int n = price.n_rows;
+                                    int m = order.n_rows;
+                                    double lag = Rcpp::as<double>(lags);
+                                    arma::mat output(n,4);
+                                    int iLag(0), iCurr(0);
+                                    for( int i=0; i<n; i++){
+                                    while( price(i,0) > order(iLag,0) + lag && iLag < m-1) iLag++; //iterate iLag until it's within Lag seconds of price's time
+                                    while( price(i,0) >= order(iCurr,0)  && iCurr < m-1 ) iCurr++;
+                                    output(i,0) = iCurr-iLag;
+                                    output(i,1) = 0;
+                                    output(i,2) = 0;
+                                    output(i,3) = 0;
+                                    for( int j=iLag; j<iCurr; j++){
+                                    output(i,1) = output(i,1) + order(j,1);
+                                    output(i,2) = output(i,2) + order(j,3);
+                                    output(i,3) = output(i,3) + order(j,3)*order(j,1);
+                                    }
+                                    }
+                                    return(wrap(output));
+                                    "
   )
   
   load_lag_trades = function( price, orders, lag=60 ){
@@ -434,27 +435,27 @@ if( Sys.info()[4]!="JOSH_LAPTOP" ){
 }
 
 #Sample run of neural network code:
-  #d = data.frame( matrix(rnorm(5000),ncol=5) ); colnames(d) = paste0("X",1:5); d$Y = as.matrix(d)%*%runif(5) + rnorm(100)
-  #mod = fit.nn( Y ~ X1 + X2 + X3, data=d, hidden=8 )
-  #predict.nn( mod, d[,1:3] )
+#d = data.frame( matrix(rnorm(5000),ncol=5) ); colnames(d) = paste0("X",1:5); d$Y = as.matrix(d)%*%runif(5) + rnorm(100)
+#mod = fit.nn( Y ~ X1 + X2 + X3, data=d, hidden=8 )
+#predict.nn( mod, d[,1:3] )
 
 #Use cvModel function:
-  #outNn = cvModel( d, cvGroup=c(rep(-1,100), rep(1:10,each=90)), indCol=6, model="fit.nn(Y~X1+X2+X3+X4+X5, hidden=8, report=F)" )
-  #outRf = cvModel( d, cvGroup=c(rep(-1,100), rep(1:10,each=90)), indCol=6, model="randomForest(Y~., ntree=10)" )
-  #outGlm = cvModel( d, cvGroup=c(rep(-1,100), rep(1:10,each=90)), indCol=6, model="glm(Y~X1+X2+X3+X4+X5)" )
-  #outGlmnet = cvModel( d, cvGroup=c(rep(-1,100), rep(1:10,each=90)), indCol=6, model="fit.glmnet(Y~X1+X2+X3+X4+X5)" )
-  #outPcr = cvModel( d, cvGroup=c(rep(-1,100), rep(1:10,each=90)), indCol=6, model="pcr(Y ~ ., ncomp=2 )" )
-  #outTree = cvModel( d, cvGroup=c(rep(-1,100), rep(1:10,each=90)), indCol=6, model="rpart(Y ~ . )" )
-  #outGbm = cvModel( d, cvGroup=c(rep(-1,100), rep(1:10,each=90)), indCol=6, model="gbm(Y ~ ., n.trees=10, distribution='gaussian' )", pred.cols=4 )
+#outNn = cvModel( d, cvGroup=c(rep(-1,100), rep(1:10,each=90)), indCol=6, model="fit.nn(Y~X1+X2+X3+X4+X5, hidden=8, report=F)" )
+#outRf = cvModel( d, cvGroup=c(rep(-1,100), rep(1:10,each=90)), indCol=6, model="randomForest(Y~., ntree=10)" )
+#outGlm = cvModel( d, cvGroup=c(rep(-1,100), rep(1:10,each=90)), indCol=6, model="glm(Y~X1+X2+X3+X4+X5)" )
+#outGlmnet = cvModel( d, cvGroup=c(rep(-1,100), rep(1:10,each=90)), indCol=6, model="fit.glmnet(Y~X1+X2+X3+X4+X5)" )
+#outPcr = cvModel( d, cvGroup=c(rep(-1,100), rep(1:10,each=90)), indCol=6, model="pcr(Y ~ ., ncomp=2 )" )
+#outTree = cvModel( d, cvGroup=c(rep(-1,100), rep(1:10,each=90)), indCol=6, model="rpart(Y ~ . )" )
+#outGbm = cvModel( d, cvGroup=c(rep(-1,100), rep(1:10,each=90)), indCol=6, model="gbm(Y ~ ., n.trees=10, distribution='gaussian' )", pred.cols=4 )
 
 #Measure Performance:
-  #sum( (outGlm-d$Y)[cvGroup==-1,1]^2 )
-  #sum( (outRf-d$Y)[cvGroup==-1,1]^2 )
-  #sum( (outTree-d$Y)[cvGroup==-1,1]^2 )
-  #sum( (outNn-d$Y)[cvGroup==-1,1]^2 )
-  #for( i in 1:ncol(outGbm) ) print(sum( (outGbm[,i]-d$Y)[cvGroup==-1,1]^2 ))
-  #for( i in 1:ncol(outGlmnet) ) print(sum( (outGlmnet[,i]-d$Y)[cvGroup==-1,1]^2 ))
-  #for( i in 1:ncol(outPcr) ) print(sum( (outPcr[,i]-d$Y)[cvGroup==-1,1]^2 ))
+#sum( (outGlm-d$Y)[cvGroup==-1,1]^2 )
+#sum( (outRf-d$Y)[cvGroup==-1,1]^2 )
+#sum( (outTree-d$Y)[cvGroup==-1,1]^2 )
+#sum( (outNn-d$Y)[cvGroup==-1,1]^2 )
+#for( i in 1:ncol(outGbm) ) print(sum( (outGbm[,i]-d$Y)[cvGroup==-1,1]^2 ))
+#for( i in 1:ncol(outGlmnet) ) print(sum( (outGlmnet[,i]-d$Y)[cvGroup==-1,1]^2 ))
+#for( i in 1:ncol(outPcr) ) print(sum( (outPcr[,i]-d$Y)[cvGroup==-1,1]^2 ))
 
 predict.AMORE = function(net, newdata){
   nodes = net$net$layers
@@ -465,7 +466,7 @@ predict.AMORE = function(net, newdata){
     new.node = matrix(0,nrow=nrow(newdata),ncol=0)
     for( j in nodes[[i]]){
       new.node = cbind( new.node,
-        net$net$neurons[[curr.neur]]$f0( curr.node%*%net$net$neurons[[curr.neur]]$weights )
+                        net$net$neurons[[curr.neur]]$f0( curr.node%*%net$net$neurons[[curr.neur]]$weights )
       )
       curr.neur = curr.neur + 1
     }
@@ -511,7 +512,7 @@ sim_neural_net = function(type, n){
     out = data.frame(t=NA, MSE.Test=NA, MSE.Train=NA, mod="nnet")
   }
   out$mod = as.character( out$mod )
-
+  
   print("Starting neuralnet:")
   #neuralnet
   Start = Sys.time()
@@ -526,7 +527,7 @@ sim_neural_net = function(type, n){
       out.new$mod = "neuralnet"
       out = rbind(out, out.new)
     } else {
-    out = rbind(out,c(NA,NA,NA,"neuralnet"))
+      out = rbind(out,c(NA,NA,NA,"neuralnet"))
     }
   } else {
     out = rbind(out,c(NA,NA,NA,"neuralnet"))
@@ -561,7 +562,7 @@ sim_neural_net = function(type, n){
   } else {
     out = rbind(out,c(NA,NA,NA,"RNNS: rbf"))
   }
-
+  
   print("Starting elman:")
   #RSNNS elman
   Start = Sys.time()
@@ -591,15 +592,15 @@ sim_neural_net = function(type, n){
   } else {
     out = rbind(out,c(NA,NA,NA,"RNNS: jordan"))
   }
-
+  
   print("Starting AMORE:")
   #AMORE
   Start = Sys.time()
   net = newff( c(2,6,1), learning.rate.global=1e-2, momentum.global=.5
-    ,error.criterium="LMS", Stao=NA, hidden.layer="tansig"
-    ,output.layer="purelin", method="ADAPTgdwm" )
+               ,error.criterium="LMS", Stao=NA, hidden.layer="tansig"
+               ,output.layer="purelin", method="ADAPTgdwm" )
   fit = try( AMORE::train( net, as.matrix(cbind(1,d[d$train,"x",drop=F])), as.matrix(d[d$train,"y",drop=F])
-    ,error.criterium="LMS", show.step=10, n.shows=10, report=F ) )
+                           ,error.criterium="LMS", show.step=10, n.shows=10, report=F ) )
   if( !is(fit)=="try-error" ){
     d$preds = predict.AMORE( fit, newdata=cbind(1,d[,"x",drop=F]) )
     out.new = data.frame(t = as.numeric(Sys.time() - Start))
@@ -645,7 +646,7 @@ sim_nnet = function(type, n, hidden, input){
   } else {
     out = data.frame(t=NA, MSE.Test=NA, MSE.Train=NA, mod="nnet")
   }
-
+  
   out$hidden = hidden
   out$input = input
   out$type = type
@@ -658,23 +659,31 @@ sim_nnet = function(type, n, hidden, input){
 #- Include option to run nnet with multiple starting weights and chose best one
 #- Train nnet until it forecasts well on test set.  Probably not possible with nnet...
 
+#NOTE: cnames should be in memory before running this function!!!
 #d: big.matrix object
 #ind_vars: names of variables to be used in the model
 #dep_var: Either "PriceDiff1SecAhead" or "PriceDiff60SecAhead"
-#cnames: column names for d
 #price_decay: How the case weights should decrease as a function of price level?  If the current price is $94, then observations at $95 and $93 will have weight 1*price.decay.
 #day.decay: How should the case weights decrease as a function of day?  For k days in the past, case weights are decayed by (day.decay)^k
 #time.decay: How should the case weights decrease as a function of time?  For k seconds in the past, case weights are decayed by (time.decay)^k
 #outcry.decay: How should the case weights decrease as a function of outcry period?  If the observation is the same as the current outcry, don't decay, otherwise multiply by this factor.
 #step.size: How frequently should models be built (in seconds)?  Smaller values should be more accurate but take longer to fit.
 #chunk.rows: Controls how many rows are read at one time for the bigglm algorithm.
-#type: Should be either "GLM" or "nnet".  Either a linear regression or neural network model is then used.
-#size: How many hidden nodes to fit with nnet?  Ignored for type="GLM"
+#type: Should be either "GLM", "nnet", or "gam".  Either a linear regression, neural network, or GAM model is then used.
+#size: How many hidden nodes to fit with nnet?  Ignored for type!="nnet"
 #min.wt: What obs should be ignored?  Ignored if their weight is less than max(Weight)*min.wt (nnet only)
-#repl: How many neural networks (with randomized weights) should be fit?  The network with best fit on training data is kept.  Ignored for type="GLM"
+#repl: How many neural networks (with randomized weights) should be fit?  The network with best fit on training data is kept.  Ignored for type!="nnet"
 weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
-      ,price.decay=0.6, day.decay=1, time.decay=0.99999, outcry.decay=0.5, step.size=15*60
-      ,chunk.rows=25000, type="GLM", size=10, min.wt=.1, repl=1){
+                          ,price.decay=0.6, day.decay=1, time.decay=0.99999, outcry.decay=0.5, step.size=15*60
+                          ,chunk.rows=25000, type="GLM", size=10, min.wt=.1, repl=1){
+  #Check for results.csv, if it doesn't exist then create it:
+  if( !any( list.files()=="results.csv") ){
+    pred.1 = eval_preds(0,d,cnames,type=1)
+    pred.60 = eval_preds(0,d,cnames,type=60)
+    out = data.frame(id=1,forecast=1,type="pers",ind_vars=NA,step.size=NA,size=NA,repl=NA,params=NA,t=NA,RMSE=pred.1[[1]], RMSE.W=pred.1[[2]][3,2], RMSE.R=pred.1[[2]][4,2], RMSE.F=pred.1[[2]][5,2])
+    out = rbind(out,data.frame(id=1,forecast=60,type="pers",ind_vars=NA,step.size=NA,size=NA,repl=NA,params=NA,t=NA,RMSE=pred.60[[1]], RMSE.W=pred.60[[2]][3,2], RMSE.R=pred.60[[2]][4,2], RMSE.F=pred.60[[2]][5,2]))
+    write.csv(file="results.csv", out)
+  }
   
   #Set up Start and results for output purposes:
   Start = Sys.time()
@@ -689,19 +698,19 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
   if( !all(ind_vars %in% cnames) ){
     stop("Not all variables in ind_vars are in cnames")
   }
-
+  
   #Note: outcry starts at 6:45 and ends at 1:30. If step.size is such that 6:45 and 1:30 are not
   #divisible by it, then you may have weird estimates on those boundaries (since outcry is assumed
   #to be on or off over the whole step.size period).
   if(any(round(c(6.75,13.5)*60*60/step.size)!=round(c(6.75,13.5)*60*60/step.size)) & outcry.decay!=1)
     warning("Step size may lead to invalid predictions as it doesn't split outcry hours well!")
-
+  
   #Reorder ind_var_names (sort based on cnames for easy prediction):
   ind_vars = ind_vars[order( match(ind_vars,cnames) )]
   col.inx = cnames %in% c(dep_var,ind_vars,"Time","MicroPrice","day","Outcry","Weight")
   col.inx = c(col.inx, rep(F,ncol(d)-length(cnames)))
   preds = rep(0,nrow(d))
-
+  
   #Define function to read data. This is needed for the bigglm model. This function should return NULL when passed TRUE (and
   #reset the point we're reading from) and should return the next chunk of data when passed FALSE.
   read.d = function(reset){
@@ -731,7 +740,7 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
   time.loop = 24*60*60*2 + seq(0,24*60*60*3,by=step.size)
   #Remove times after end of dataset:
   time.loop = time.loop[time.loop<max(d[,which(cnames=="Time")])]
-
+  
   #Build the model for each time chunk:
   for( i in time.loop ){
     filter = d[,which(cnames=="Time")]<=(i-60) #Only use rows which are more than 60 seconds before the first prediction
@@ -749,13 +758,13 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
       #Use the day for the first prediction obs and compare that to all days (larger diff=>smaller weight)
       day.decay^(abs(d[sum(filter)+1,which(cnames=="day")]-d[filter,which(cnames=="day")]))
     d[filter,which(cnames=="Weight")] = d[filter,which(cnames=="Weight")]/max(d[filter,which(cnames=="Weight")])
-
+    
     #Clear out all the other weights, just in case:
     d[!filter,which(cnames=="Weight")] = 0
-
+    
     #Fit a GLM if that's what's desired:
     if(type=="GLM") fit = bigglm( form, read.d, weights=Weight~1 )
-
+    
     #Fit a neural network if that's what's desired. Note: the necessary data matrix is brought into RAM in this case. Be careful!
     if(type=="nnet"){
       cols = which(cnames %in% c(dep_var,ind_vars))
@@ -775,7 +784,7 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
       if(bestfit$convergence!=0) warning("Neural network failed to converge!")
       fit = bestfit
     }
-
+    
     #Fit a GAM if that's what's desired:
     if(type=="gam"){
       cols = which(cnames %in% c(dep_var,ind_vars))
@@ -797,7 +806,7 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
       form = as.formula( gsub("\\+$","",form) )
       fit = gam( form, data=data, weights=Weight )
     }
-
+    
     #Make predictions:
     pred.d = data.frame(d[pred.filter,col.inx]) #covariates used for predictions
     colnames(pred.d) = cnames[col.inx] #Give the covariates the correct colnames
@@ -813,9 +822,9 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
     return(preds)
   }
   results = rbind(results, c(id=ID, ifelse(dep_var=="PriceDiff1SecAhead",1,60), type=type
-    ,ind_vars = paste(ind_vars,collapse=","), step.size=step.size, size=size, repl=repl
-    ,params=paste0("price.decay=",price.decay,",day.decay=",day.decay,",time.decay=",time.decay,",outcry.decay=",outcry.decay,",repl=",repl,",min.wt=",min.wt)
-    ,t=t, RMSE=perf[[1]], RMSE.W=perf[[2]][3,2], RMSE.R=perf[[2]][4,2], RMSE.F=perf[[2]][5,2] ) )
+                             ,ind_vars = paste(ind_vars,collapse=","), step.size=step.size, size=size, repl=repl
+                             ,params=paste0("price.decay=",price.decay,",day.decay=",day.decay,",time.decay=",time.decay,",outcry.decay=",outcry.decay,",repl=",repl,",min.wt=",min.wt)
+                             ,t=t, RMSE=perf[[1]], RMSE.W=perf[[2]][3,2], RMSE.R=perf[[2]][4,2], RMSE.F=perf[[2]][5,2] ) )
   write.csv(results, "results.csv", row.names=F)
   ggsave( paste0("ID=",ID,"_time.png"), ggplot(perf[[3]], aes(x=time, y=Model.RMSE/Base.RMSE) ) + geom_point() )
   ggsave( paste0("ID=",ID,"_price.png"), ggplot(perf[[4]], aes(x=price, y=Model.RMSE/Base.RMSE) ) + geom_point() )
