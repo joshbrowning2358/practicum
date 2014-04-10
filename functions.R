@@ -347,7 +347,7 @@ create.read.f = function(filename,chunk.rows=100){
 #summary(fit)
 
 #Don't run the Rcpp code if you're on Windows, unless you're on version 2.15.3
-if( Sys.info()[1]!="Windows" | (version$major=="2" & version$minor=="15.3") ){
+if( Sys.info()[1]!="Windows"){
   #To bring in lagged times, use Rcpp (so you can loop efficiently):
   #prices (the input, must be a matrix) should be two columns: time (numeric, in seconds) and variable to lag.
   #Outputs shift_price, a matrix, which contains lagged values at 1s, 2s, 3s, 4s, 5s.
