@@ -15,7 +15,7 @@ library(scales)
 #library(neuralnet)
 library(biglm)
 library(bigmemory)
-#library(sqldf)
+library(sqldf)
 library(nnet)
 library(mgcv)
 
@@ -674,8 +674,8 @@ sim_nnet = function(type, n, hidden, input){
 #min.wt: What obs should be ignored?  Ignored if their weight is less than max(Weight)*min.wt (nnet only)
 #repl: How many neural networks (with randomized weights) should be fit?  The network with best fit on training data is kept.  Ignored for type!="nnet"
 weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
-                          ,price.decay=0.6, day.decay=1, time.decay=0.99999, outcry.decay=0.5, step.size=15*60
-                          ,chunk.rows=25000, type="GLM", size=10, min.wt=.1, repl=1){
+                          ,price.decay=1, day.decay=1, time.decay=0.99999, outcry.decay=0.5, step.size=15*60
+                          ,chunk.rows=25000, type="GLM", size=10, min.wt=.1, repl=1, combine.method=mean){
   #Check for results.csv, if it doesn't exist then create it:
   if( !any( list.files()=="results.csv") ){
     pred.1 = eval_preds(0,d,cnames,type=1)
@@ -685,17 +685,21 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
     write.csv(file="results.csv", out)
   }
   
+  #Maintain compatability
+  #If ind_vars is a vector, make it a list of length 1:
+  if(is.character(ind_vars)){ ind_vars = list(ind_vars) }
+  #If type is a vector, make it a list  
+  if(length(type)==1){ type=as.list(rep(type,length(ind_vars)))}
+  #No combine.method required if only running one model:
+  if(length(ind_vars)==1) combine.method=""
+  
   #Set up Start and results for output purposes:
   Start = Sys.time()
   results = read.csv(file="results.csv", stringsAsFactors=F)
   ID = max(results$id)+1
   
-  #Put in a safety net to help keep R from crashing. Running this with nnet and even a few predictors could take a LONG time.
-#  if(type=="nnet" & length(ind_vars)>10 ){
-#    are_u_sure = readline("Algorithm may take a very long time. Are you sure you want to continue (1=Yes, 0=No)?")
-#    if(are_u_sure!=1) stop("Algorithm aborted by user")
-#  }
-  if( !all(ind_vars %in% cnames) ){
+  #Put in a safety net to help keep R from crashing.
+  if( !all(do.call("c",ind_vars) %in% cnames) ){
     stop("Not all variables in ind_vars are in cnames")
   }
   
@@ -706,11 +710,14 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
     warning("Step size may lead to invalid predictions as it doesn't split outcry hours well!")
   
   #Reorder ind_var_names (sort based on cnames for easy prediction):
-  ind_vars = ind_vars[order( match(ind_vars,cnames) )]
-  col.inx = cnames %in% c(dep_var,ind_vars,"Time","MicroPrice","day","Outcry","Weight")
-  col.inx = c(col.inx, rep(F,ncol(d)-length(cnames)))
-  preds = rep(0,nrow(d))
+  ind_vars = lapply(ind_vars,function(x)x[order( match(x,cnames) )])
+  col.inx = lapply(ind_vars, function(x)cnames %in% c(dep_var,x,"Time","MicroPrice","day","Outcry","Weight"))
+  col.inx = lapply(col.inx, function(x)c(x, rep(F,ncol(d)-length(cnames))))
+  #preds will hold the predictions from each individual model in a column and the final prediction in the last column
+  preds = matrix(0,nrow=nrow(d),ncol=length(ind_vars)+1)
+  colnames(preds) = c(paste0("Model",1:length(ind_vars)),"Final")
   
+  #NOT CURRENTLY USED!  GLM models are fit using glm and not bigglm.
   #Define function to read data. This is needed for the bigglm model. This function should return NULL when passed TRUE (and
   #reset the point we're reading from) and should return the next chunk of data when passed FALSE.
   read.d = function(reset){
@@ -735,14 +742,17 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
     return(out[filter[row.inx],])
   }
   
-  #Create the bigmatrix model:
-  form = as.formula( paste0( dep_var, "~", paste(ind_vars,collapse="+") ) )
+  #Create the model formula, initialize the time.loop:
+  form = lapply(ind_vars,function(x){
+    as.formula( paste0( dep_var, "~", paste(x,collapse="+") ) )
+  } )
   time.loop = 24*60*60*2 + seq(0,24*60*60*3,by=step.size)
   #Remove times after end of dataset:
   time.loop = time.loop[time.loop<max(d[,which(cnames=="Time")])]
   
   #Build the model for each time chunk:
   for( i in time.loop ){
+    
     filter = d[,which(cnames=="Time")]<=(i-60) #Only use rows which are more than 60 seconds before the first prediction
     pred.filter = d[,which(cnames=="Time")]>i & d[,which(cnames=="Time")]<=i+step.size #Define which rows you'll be predicting
     #If MicroPrice is NA on some row, don't predict for that row (this code generates a warning without this)
@@ -763,65 +773,103 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
     d[!filter,which(cnames=="Weight")] = 0
     
     #Fit a GLM if that's what's desired:
-    if(type=="GLM") fit = bigglm( form, read.d, weights=Weight~1 )
+    #if(type=="GLM") fit = bigglm( form, read.d, weights=Weight~1 )
     
-    #Fit a neural network if that's what's desired. Note: the necessary data matrix is brought into RAM in this case. Be careful!
-    if(type=="nnet"){
-      cols = which(cnames %in% c(dep_var,ind_vars))
+    #Create each of the different models
+    for( iVar in 1:length(ind_vars) ){
+      #Set up model dataframe
+      cols = which(cnames %in% c(dep_var,ind_vars[[iVar]]))
       cols = c(cols, which(cnames=="Weight"))
       data = data.frame(d[filter,cols])
       colnames(data) = cnames[cols]
-      #Remove rows of data with small weights to speed up nnet
+      #Remove rows of data with small weights to speed up modeling
       data = data[data$Weight>min.wt*max(data$Weight),]
-      bestfit = nnet( form, weights=Weight, data=data, linout=TRUE, maxit=100000, size=size, trace=F )
-      j = 1
-      #Run nnet with several different initial weights if repl>1:
-      while(j < repl){
-        fit = nnet( form, weights=Weight, data=data, linout=TRUE, maxit=100000, size=size, trace=F )
-        if(fit$value<bestfit$value) bestfit=fit
-        j = j+1
+      
+      if(type[[iVar]]=="GLM") fit = glm(form[[iVar]],data=data)
+      
+      #Fit a neural network if that's what's desired. Note: the necessary data matrix is brought into RAM in this case. Be careful!
+      if(type[[iVar]]=="nnet"){
+        bestfit = nnet( form[[iVar]], weights=Weight, data=data, linout=TRUE, maxit=100000, size=size, trace=F )
+        j = 1
+        #Run nnet with several different initial weights if repl>1:
+        while(j < repl){
+          fit = nnet( form[[iVar]], weights=Weight, data=data, linout=TRUE, maxit=100000, size=size, trace=F )
+          if(fit$value<bestfit$value) bestfit=fit
+          j = j+1
+        }
+        if(bestfit$convergence!=0) warning("Neural network failed to converge!")
+        fit = bestfit
       }
-      if(bestfit$convergence!=0) warning("Neural network failed to converge!")
-      fit = bestfit
+
+      #Fit a GAM if that's what's desired:
+      if(type[[iVar]]=="gam"){
+        #Build the formula:
+        form[[iVar]] = paste( dep_var, "~ ")
+        for( j in ind_vars[[iVar]] ){
+          #Use a linear term if you don't have enough unique values:
+          if(length(unique(data[,j]))<=5)
+            form[[iVar]] = paste0(form[[iVar]], j, "+")
+          else
+            form[[iVar]] = paste0(form[[iVar]], "s(", j, ") +")
+        }
+        #Remove the trailing "+", convert to formula:
+        form[[iVar]] = as.formula( gsub("\\+$","",form[[iVar]]) )
+        fit = gam( form[[iVar]], data=data, weights=Weight )
+      }
+      
+      #Make predictions:
+      pred.d = data.frame(d[filter | pred.filter,col.inx[[iVar]]]) #covariates used for predictions
+      colnames(pred.d) = cnames[col.inx[[iVar]]] #Give the covariates the correct colnames
+      preds[filter | pred.filter,iVar] = predict(fit, newdata=pred.d) #Update preds (in the correct rows) with the new predictions
+
+    } #End Model Loop
+        
+    #Combine predictions from various models to make final prediction:
+    if(is.function(combine.method)){
+      preds[pred.filter,ncol(preds)] = apply(preds[pred.filter,-ncol(preds)], 1, combine.method)
+      print(paste0("Time ",i," completed out of total time ",max(time.loop)))
+      next
+    }
+
+    #Combine the output using a glm
+    if(combine.method=="glm"){
+      combine.fit = glm( Y ~ ., data=data.frame(preds[filter,-ncol(preds)], Y=d[filter,which(cnames==dep_var)]))
+#      combine.fit = glm( Y ~ ., data=data.frame(preds[filter | pred.filter,-ncol(preds)], Y=d[filter | pred.filter,which(cnames==dep_var)]))
+      preds[pred.filter,ncol(preds)] = predict(combine.fit, newdata=data.frame(preds[pred.filter,]))
+    }
+
+    #Use a neural network to choose which model to use
+    if(combine.method=="nnet"){
+      combine.fit = nnet( x=preds[filter,-ncol(preds)], y=d[filter,which(cnames==dep_var)], size=10, linout=T, maxit=10000)
+#      combine.fit = nnet( x=preds[filter | pred.filter,-ncol(preds)], y=d[filter | pred.filter,which(cnames==dep_var)])
+      preds[pred.filter,ncol(preds)] = predict(combine.fit, newdata=data.frame(preds[pred.filter,]))
     }
     
-    #Fit a GAM if that's what's desired:
-    if(type=="gam"){
-      cols = which(cnames %in% c(dep_var,ind_vars))
-      cols = c(cols, which(cnames=="Weight"))
-      data = data.frame(d[filter,cols])
-      colnames(data) = cnames[cols]
-      #Remove rows of data with small weights to speed up gam
-      data = data[data$Weight>min.wt*max(data$Weight),]
-      form = paste0( dep_var, "~ ")
-      #Build the formula:
-      for( j in ind_vars ){
-        #Use a linear term if you don't have enough unique values:
-        if(length(unique(data[,j]))<=5)
-          form = paste0(form, j, "+")
-        else
-          form = paste0(form, "s(", j, ") +")
-      }
-      #Remove the trailing "+", convert to formula:
-      form = as.formula( gsub("\\+$","",form) )
-      fit = gam( form, data=data, weights=Weight )
+    #Use a classification tree to choose the best model:
+    if(combine.method=="classify"){
+      err = abs(preds[filter,-ncol(preds)] - d[filter,which(cnames==dep_var)])
+      best.model = apply(err, 1, which.min)
+      rm(err)
+      X = d[,which(cnames %in% c("MicroPrice","Time","Outcry"))]
+      colnames(X) = cnames[which(cnames %in% c("MicroPrice","Time","Outcry"))]
+      #Convert time to seconds past midnight rather than seconds since start of dataset:
+      X[,"Time"] = X[,"Time"]-floor(X[,"Time"]/(24*60*60))
+      fit = rpart(as.factor(Y) ~ ., data=data.frame(X[filter,], Y=best.model) )
+      wts = predict(fit, newdata=data.frame(X[pred.filter,]))
+      preds[pred.filter,ncol(preds)] = apply(preds[pred.filter,-ncol(preds)]*wts, 1, sum)
     }
-    
-    #Make predictions:
-    pred.d = data.frame(d[pred.filter,col.inx]) #covariates used for predictions
-    colnames(pred.d) = cnames[col.inx] #Give the covariates the correct colnames
-    preds[pred.filter] = predict(fit, newdata=pred.d) #Update preds (in the correct rows) with the new predictions
+
     print(paste0("Time ",i," completed out of total time ",max(time.loop)))
-  }
+  } #End Time Loop
   
   t = as.numeric(difftime(Sys.time(), Start, units="mins"))
   if( dep_var %in% c("PriceDiff1SecAhead", "PriceDiff60SecAhead") ){
-    if(dep_var=="PriceDiff1SecAhead") perf=eval_preds(preds, d, cnames, 1, full=T)
-    if(dep_var=="PriceDiff60SecAhead") perf=eval_preds(preds, d, cnames, 60, full=T)
+    if(dep_var=="PriceDiff1SecAhead") perf=eval_preds(preds[,ncol(preds)], d, cnames, 1, full=T)
+    if(dep_var=="PriceDiff60SecAhead") perf=eval_preds(preds[,ncol(preds)], d, cnames, 60, full=T)
   } else {
-    return(preds)
+    return(preds[,ncol(preds)])
   }
-  results = rbind(results, c(id=ID, ifelse(dep_var=="PriceDiff1SecAhead",1,60), type=type
+  results = rbind(results, c(id=ID, ifelse(dep_var=="PriceDiff1SecAhead",1,60), type=do.call("paste",type)
                              ,ind_vars = paste(ind_vars,collapse=","), step.size=step.size, size=size, repl=repl
                              ,params=paste0("price.decay=",price.decay,",day.decay=",day.decay,",time.decay=",time.decay,",outcry.decay=",outcry.decay,",repl=",repl,",min.wt=",min.wt)
                              ,t=t, RMSE=perf[[1]], RMSE.W=perf[[2]][3,2], RMSE.R=perf[[2]][4,2], RMSE.F=perf[[2]][5,2] ) )
