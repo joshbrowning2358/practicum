@@ -674,7 +674,7 @@ sim_nnet = function(type, n, hidden, input){
 #min.wt: What obs should be ignored?  Ignored if their weight is less than max(Weight)*min.wt (nnet only)
 #repl: How many neural networks (with randomized weights) should be fit?  The network with best fit on training data is kept.  Ignored for type!="nnet"
 weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
-                          ,price.decay=1, day.decay=1, time.decay=0.99999, outcry.decay=0.5, step.size=2.25*60*60
+                          ,price.decay=1, day.decay=1, time.decay=1, outcry.decay=0.5, step.size=2.25*60*60
                           ,chunk.rows=25000, type="GLM", size=10, min.wt=0, repl=5, combine.method=mean){
   #Check for results.csv, if it doesn't exist then create it:
   if( !any( list.files()=="results.csv") ){
@@ -762,7 +762,7 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
       #Use the last observed MicroPriceAdj and compare that to all MicroPrices (larger diff=>smaller weight)
       price.decay^(abs(d[filter,which(cnames=="MicroPriceAdj")][sum(filter)]-d[filter,which(cnames=="MicroPriceAdj")]))*
       #Use the first time and compare that to all times (larger diff=>smaller weight)
-      time.decay^(abs(i-d[filter,which(cnames=="Time")]))*
+      time.decay^(abs(i-d[filter,which(cnames=="Time")])/60/60)*
       #Use the outcry for the first prediction obs and compare that to all outcries (if diff=>smaller weight)
       outcry.decay^(abs(d[sum(filter)+1,which(cnames=="Outcry")]-d[filter,which(cnames=="Outcry")]))*
       #Use the day for the first prediction obs and compare that to all days (larger diff=>smaller weight)
@@ -840,7 +840,7 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
 
     #Use a neural network to choose which model to use
     if(combine.method=="nnet"){
-      combine.fit = nnet( x=preds[filter,-ncol(preds)], y=d[filter,which(cnames==dep_var)], size=10, linout=T, maxit=10000)
+      combine.fit = nnet( x=preds[filter,-ncol(preds)], y=d[filter,which(cnames==dep_var)], size=10, linout=T, maxit=10000, trace=F)
 #      combine.fit = nnet( x=preds[filter | pred.filter,-ncol(preds)], y=d[filter | pred.filter,which(cnames==dep_var)])
       preds[pred.filter,ncol(preds)] = predict(combine.fit, newdata=data.frame(preds[pred.filter,]))
     }
