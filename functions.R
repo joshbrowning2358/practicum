@@ -671,8 +671,9 @@ sim_nnet = function(type, n, hidden, input){
 #chunk.rows: Controls how many rows are read at one time for the bigglm algorithm.
 #type: Should be either "GLM", "nnet", or "gam".  Either a linear regression, neural network, or GAM model is then used.
 #size: How many hidden nodes to fit with nnet?  Ignored for type!="nnet"
-#min.wt: What obs should be ignored?  Ignored if their weight is less than max(Weight)*min.wt (nnet only)
+#min.wt: What obs should be ignored?  Ignored if their weight is less than max(Weight)*min.wt
 #repl: How many neural networks (with randomized weights) should be fit?  The network with best fit on training data is kept.  Ignored for type!="nnet"
+#combine.method: How should the multiple outputs be combined?  If "glm" or "nnet" (with quotes!) then a linear regression or neural network is built on the output.  If a function, that function is applied to each row of the predictions.
 weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
                           ,price.decay=1, day.decay=1, time.decay=1, outcry.decay=0.5, step.size=2.25*60*60
                           ,chunk.rows=25000, type="GLM", size=10, min.wt=0, repl=5, combine.method=mean){
