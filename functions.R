@@ -872,7 +872,7 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
   }
   results = rbind(results, c(id=ID, ifelse(dep_var=="PriceDiff1SecAhead",1,60), type=do.call("paste",type)
                              ,ind_vars = paste(ind_vars,collapse=","), step.size=step.size, size=size, repl=repl
-                             ,params=paste0("price.decay=",price.decay,",day.decay=",day.decay,",time.decay=",time.decay,",outcry.decay=",outcry.decay,",repl=",repl,",min.wt=",min.wt)
+                             ,params=paste0("price.decay=",price.decay,",day.decay=",day.decay,",time.decay=",time.decay,",outcry.decay=",outcry.decay,",repl=",repl,",min.wt=",min.wt,"combine.method=",combine.method)
                              ,t=t, RMSE=perf[[1]], RMSE.W=perf[[2]][3,2], RMSE.R=perf[[2]][4,2], RMSE.F=perf[[2]][5,2] ) )
   write.csv(results, "results.csv", row.names=F)
   ggsave( paste0("ID=",ID,"_time.png"), ggplot(perf[[3]], aes(x=time, y=Model.RMSE/Base.RMSE) ) + geom_point() )
