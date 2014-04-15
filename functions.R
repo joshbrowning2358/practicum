@@ -667,6 +667,7 @@ sim_nnet = function(type, n, hidden, input){
 #day.decay: How should the case weights decrease as a function of day?  For k days in the past, case weights are decayed by (day.decay)^k
 #time.decay: How should the case weights decrease as a function of time?  For k seconds in the past, case weights are decayed by (time.decay)^k
 #outcry.decay: How should the case weights decrease as a function of outcry period?  If the observation is the same as the current outcry, don't decay, otherwise multiply by this factor.
+#hour.decay: How should the case weights decrease as a function of time of day?  
 #step.size: How frequently should models be built (in seconds)?  Smaller values should be more accurate but take longer to fit.
 #chunk.rows: Controls how many rows are read at one time for the bigglm algorithm.
 #type: Should be either "GLM", "nnet", or "gam".  Either a linear regression, neural network, or GAM model is then used.
@@ -675,7 +676,7 @@ sim_nnet = function(type, n, hidden, input){
 #repl: How many neural networks (with randomized weights) should be fit?  The network with best fit on training data is kept.  Ignored for type!="nnet"
 #combine.method: How should the multiple outputs be combined?  If "glm" or "nnet" (with quotes!) then a linear regression or neural network is built on the output.  If a function, that function is applied to each row of the predictions.
 weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
-                          ,price.decay=1, day.decay=1, time.decay=1, outcry.decay=0.5, step.size=2.25*60*60
+                          ,price.decay=1, day.decay=1, time.decay=1, outcry.decay=0.5, hour.decay=0.8, step.size=2.25*60*60
                           ,chunk.rows=25000, type="GLM", size=10, min.wt=0, repl=5, combine.method=mean){
   #Check for results.csv, if it doesn't exist then create it:
   if( !any( list.files()=="results.csv") ){
@@ -767,7 +768,14 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
       #Use the outcry for the first prediction obs and compare that to all outcries (if diff=>smaller weight)
       outcry.decay^(abs(d[sum(filter)+1,which(cnames=="Outcry")]-d[filter,which(cnames=="Outcry")]))*
       #Use the day for the first prediction obs and compare that to all days (larger diff=>smaller weight)
-      day.decay^(abs(d[sum(filter)+1,which(cnames=="day")]-d[filter,which(cnames=="day")]))
+      day.decay^(abs(d[sum(filter)+1,which(cnames=="day")]-d[filter,which(cnames=="day")]))*
+      #Use the hour for the first prediction obs and compare that to all hours (larger diff=>smaller weight)
+      hour.decay^(min(
+        (floor(d[sum(filter)+1,which(cnames=="Time")]%%(24*60*60)/3600) #Current Hour
+        -floor(d[filter,which(cnames=="day")]%%(24*60*60)/3600))%%24 #Observation Hour
+       ,-floor(d[filter,which(cnames=="day")]%%(24*60*60)/3600))%%24 #Observation Hour
+        (floor(d[sum(filter)+1,which(cnames=="Time")]%%(24*60*60)/3600) #Current Hour
+      ))
     d[filter,which(cnames=="Weight")] = d[filter,which(cnames=="Weight")]/max(d[filter,which(cnames=="Weight")])
     
     #Clear out all the other weights, just in case:
