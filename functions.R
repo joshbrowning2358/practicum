@@ -716,7 +716,10 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
   col.inx = lapply(ind_vars, function(x)cnames %in% c(dep_var,x,"Time","MicroPrice","day","Outcry","Weight"))
   col.inx = lapply(col.inx, function(x)c(x, rep(F,ncol(d)-length(cnames))))
   #preds will hold the predictions from each individual model in a column and the final prediction in the last column
-  preds = matrix(0,nrow=nrow(d),ncol=length(ind_vars)+1)
+  if(length(ind_vars)==1)
+    preds = matrix(0,nrow=nrow(d),ncol=1)
+  else
+    preds = matrix(0,nrow=nrow(d),ncol=length(ind_vars)+1)
   colnames(preds) = c(paste0("Model",1:length(ind_vars)),"Final")
   
   #NOT CURRENTLY USED!  GLM models are fit using glm and not bigglm.
