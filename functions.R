@@ -770,11 +770,11 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
       #Use the day for the first prediction obs and compare that to all days (larger diff=>smaller weight)
       day.decay^(abs(d[sum(filter)+1,which(cnames=="day")]-d[filter,which(cnames=="day")]))*
       #Use the hour for the first prediction obs and compare that to all hours (larger diff=>smaller weight)
-      hour.decay^(min(
+      hour.decay^(pmin(
         (floor(d[sum(filter)+1,which(cnames=="Time")]%%(24*60*60)/3600) #Current Hour
         -floor(d[filter,which(cnames=="day")]%%(24*60*60)/3600))%%24 #Observation Hour
-       ,-floor(d[filter,which(cnames=="day")]%%(24*60*60)/3600))%%24 #Observation Hour
-        (floor(d[sum(filter)+1,which(cnames=="Time")]%%(24*60*60)/3600) #Current Hour
+       ,(floor(d[filter,which(cnames=="day")]%%(24*60*60)/3600) #Observation Hour
+        -floor(d[sum(filter)+1,which(cnames=="Time")]%%(24*60*60)/3600))%%24 #Current Hour
       ))
     d[filter,which(cnames=="Weight")] = d[filter,which(cnames=="Weight")]/max(d[filter,which(cnames=="Weight")])
     
