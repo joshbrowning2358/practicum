@@ -17,10 +17,11 @@ while(TRUE){
     if(i %in% ind_vars & runif(1)<choose_prob) ind_vars = c(ind_vars,paste0("Lag_",1:round(rchisq(1,df=10)),"_",i))
     if(i %in% ind_vars & runif(1)<choose_prob) ind_vars = c(ind_vars,paste0("Lag_",1:round(rchisq(1,df=10))*60,"_",i))
   }
-  step.size = sample(c(rep(24*5,10),rep(24,5),rep(2.25,2),.75,.25),size=1)*60*60
+  step.size = sample(c(rep(24*5,10),rep(24,5),rep(2.25,2),.75),size=1)*60*60
   outcry.decay = runif(1)
-  time.decay = 1-10^sample(c(-3,-4,-5,-100),size=1)
+  time.decay = runif(1)
   price.decay = runif(1,.5,1)
+  hour.decay = runif(1)
   dep_var = sample(c("PriceDiff1SecAhead","PriceDiff60SecAhead"),size=1)
   #type = sample(c("GLM","gam","nnet"))
   type = "GLM"
@@ -30,5 +31,5 @@ while(TRUE){
   
   if(!is.null(ind_vars))
     #Use try as model may fail (perfect collinearity in columns)
-    try( weighted_model(d, ind_vars=ind_vars, step.size=step.size, type=type, dep_var=dep_var, outcry.decay=outcry.decay, time.decay=time.decay, price.decay=price.decay, repl=10, size=length(ind_vars)*2) )
+    try( weighted_model(d, ind_vars=ind_vars, step.size=step.size, type=type, dep_var=dep_var, outcry.decay=outcry.decay, time.decay=time.decay, price.decay=price.decay, hour.decay=hour.decay, repl=10, size=length(ind_vars)*2) )
 }
