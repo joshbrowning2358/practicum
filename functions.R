@@ -717,10 +717,15 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
   col.inx = lapply(col.inx, function(x)c(x, rep(F,ncol(d)-length(cnames))))
   #preds will hold the predictions from each individual model in a column and the final prediction in the last column
   if(length(ind_vars)==1)
+  {
     preds = matrix(0,nrow=nrow(d),ncol=1)
+    colnames(preds) = "Final"
+  }
   else
+  {
     preds = matrix(0,nrow=nrow(d),ncol=length(ind_vars)+1)
-  colnames(preds) = c(paste0("Model",1:length(ind_vars)),"Final")
+    colnames(preds) = c(paste0("Model",1:length(ind_vars)),"Final")
+  }
   
   #NOT CURRENTLY USED!  GLM models are fit using glm and not bigglm.
   #Define function to read data. This is needed for the bigglm model. This function should return NULL when passed TRUE (and
@@ -837,38 +842,40 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
     } #End Model Loop
         
     #Combine predictions from various models to make final prediction:
-    if(is.function(combine.method)){
-      preds[pred.filter,ncol(preds)] = apply(preds[pred.filter,-ncol(preds)], 1, combine.method)
-      print(paste0("Time ",i," completed out of total time ",max(time.loop)))
-      next
-    }
-
-    #Combine the output using a glm
-    if(combine.method=="glm"){
-      combine.fit = glm( Y ~ ., data=data.frame(preds[filter,-ncol(preds)], Y=d[filter,which(cnames==dep_var)]))
-#      combine.fit = glm( Y ~ ., data=data.frame(preds[filter | pred.filter,-ncol(preds)], Y=d[filter | pred.filter,which(cnames==dep_var)]))
-      preds[pred.filter,ncol(preds)] = predict(combine.fit, newdata=data.frame(preds[pred.filter,]))
-    }
-
-    #Use a neural network to choose which model to use
-    if(combine.method=="nnet"){
-      combine.fit = nnet( x=preds[filter,-ncol(preds)], y=d[filter,which(cnames==dep_var)], size=10, linout=T, maxit=10000, trace=F)
-#      combine.fit = nnet( x=preds[filter | pred.filter,-ncol(preds)], y=d[filter | pred.filter,which(cnames==dep_var)])
-      preds[pred.filter,ncol(preds)] = predict(combine.fit, newdata=data.frame(preds[pred.filter,]))
-    }
-    
-    #Use a classification tree to choose the best model:
-    if(combine.method=="classify"){
-      err = abs(preds[filter,-ncol(preds)] - d[filter,which(cnames==dep_var)])
-      best.model = apply(err, 1, which.min)
-      rm(err)
-      X = d[,which(cnames %in% c("MicroPrice","Time","Outcry"))]
-      colnames(X) = cnames[which(cnames %in% c("MicroPrice","Time","Outcry"))]
-      #Convert time to seconds past midnight rather than seconds since start of dataset:
-      X[,"Time"] = X[,"Time"]-floor(X[,"Time"]/(24*60*60))
-      fit = rpart(as.factor(Y) ~ ., data=data.frame(X[filter,], Y=best.model) )
-      wts = predict(fit, newdata=data.frame(X[pred.filter,]))
-      preds[pred.filter,ncol(preds)] = apply(preds[pred.filter,-ncol(preds)]*wts, 1, sum)
+    if(ncol(preds)>1){
+      if(is.function(combine.method)){
+        preds[pred.filter,ncol(preds)] = apply(preds[pred.filter,-ncol(preds)], 1, combine.method)
+        print(paste0("Time ",i," completed out of total time ",max(time.loop)))
+        next
+      }
+  
+      #Combine the output using a glm
+      if(combine.method=="glm"){
+        combine.fit = glm( Y ~ ., data=data.frame(preds[filter,-ncol(preds)], Y=d[filter,which(cnames==dep_var)]))
+  #      combine.fit = glm( Y ~ ., data=data.frame(preds[filter | pred.filter,-ncol(preds)], Y=d[filter | pred.filter,which(cnames==dep_var)]))
+        preds[pred.filter,ncol(preds)] = predict(combine.fit, newdata=data.frame(preds[pred.filter,]))
+      }
+  
+      #Use a neural network to choose which model to use
+      if(combine.method=="nnet"){
+        combine.fit = nnet( x=preds[filter,-ncol(preds)], y=d[filter,which(cnames==dep_var)], size=10, linout=T, maxit=10000, trace=F)
+  #      combine.fit = nnet( x=preds[filter | pred.filter,-ncol(preds)], y=d[filter | pred.filter,which(cnames==dep_var)])
+        preds[pred.filter,ncol(preds)] = predict(combine.fit, newdata=data.frame(preds[pred.filter,]))
+      }
+      
+      #Use a classification tree to choose the best model:
+      if(combine.method=="classify"){
+        err = abs(preds[filter,-ncol(preds)] - d[filter,which(cnames==dep_var)])
+        best.model = apply(err, 1, which.min)
+        rm(err)
+        X = d[,which(cnames %in% c("MicroPrice","Time","Outcry"))]
+        colnames(X) = cnames[which(cnames %in% c("MicroPrice","Time","Outcry"))]
+        #Convert time to seconds past midnight rather than seconds since start of dataset:
+        X[,"Time"] = X[,"Time"]-floor(X[,"Time"]/(24*60*60))
+        fit = rpart(as.factor(Y) ~ ., data=data.frame(X[filter,], Y=best.model) )
+        wts = predict(fit, newdata=data.frame(X[pred.filter,]))
+        preds[pred.filter,ncol(preds)] = apply(preds[pred.filter,-ncol(preds)]*wts, 1, sum)
+      }
     }
 
     print(paste0("Time ",i," completed out of total time ",max(time.loop)))
