@@ -6,7 +6,7 @@ if(Sys.info()[1] == "Linux" & Sys.info()[4] == "jb" ) cnames = as.character(read
 while(TRUE){
   ind_vars = c()
   #Set a probability for which variables will enter into the model:
-  choose_prob = runif(1)
+  choose_prob = sqrt(runif(1)) #sqrt to increase runif(1) closer to 1
   potential_vars = cnames[!cnames %in% c("MicroPrice1SecAhead", "MicroPrice60SecAhead", "PriceDiff1SecAhead", "PriceDiff60SecAhead","Weight")]
   lag_potential_vars = unique(gsub("Lag_[0-9]{1,3}_","",potential_vars[grepl("Lag",potential_vars)]))
   potential_vars = potential_vars[!grepl("Lag",potential_vars)]
@@ -24,8 +24,8 @@ while(TRUE){
   price.decay = runif(1,.5,1)
   hour.decay = runif(1)
   dep_var = sample(c("PriceDiff1SecAhead","PriceDiff60SecAhead"),size=1)
-  #type = sample(c("GLM","gam","nnet"))
-  type = sample(c("GLM", "GLMnet"), size=1)
+  #type = sample(c("GLM","gam","nnet", "GLMnet"))
+  type = "GLMnet"
   
   #Just in case something got in that shouldn't have:
   ind_vars = ind_vars[ind_vars %in% cnames]
