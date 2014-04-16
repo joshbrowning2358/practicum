@@ -704,6 +704,12 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
   if( !all(do.call("c",ind_vars) %in% cnames) ){
     stop("Not all variables in ind_vars are in cnames")
   }
+  for(i in 1:length(ind_vars) ){
+    if(type[[i]]=="GLMnet" & length(ind_vars[[i]])==1){
+      warning("GLMnet cannot run with one predictor, reverting to GLM")
+      type[[i]] = "GLM"
+    }
+  }
   
   #Note: outcry starts at 6:45 and ends at 1:30. If step.size is such that 6:45 and 1:30 are not
   #divisible by it, then you may have weird estimates on those boundaries (since outcry is assumed
@@ -716,16 +722,8 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
   col.inx = lapply(ind_vars, function(x)cnames %in% c(dep_var,x,"Time","MicroPrice","day","Outcry","Weight"))
   col.inx = lapply(col.inx, function(x)c(x, rep(F,ncol(d)-length(cnames))))
   #preds will hold the predictions from each individual model in a column and the final prediction in the last column
-  if(length(ind_vars)==1)
-  {
-    preds = matrix(0,nrow=nrow(d),ncol=1)
-    colnames(preds) = "Final"
-  }
-  else
-  {
-    preds = matrix(0,nrow=nrow(d),ncol=length(ind_vars)+1)
-    colnames(preds) = c(paste0("Model",1:length(ind_vars)),"Final")
-  }
+  preds = matrix(0,nrow=nrow(d),ncol=length(ind_vars)+1)
+  colnames(preds) = c(paste0("Model",1:length(ind_vars)),"Final")
   
   #NOT CURRENTLY USED!  GLM models are fit using glm and not bigglm.
   #Define function to read data. This is needed for the bigglm model. This function should return NULL when passed TRUE (and
@@ -780,8 +778,8 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
       #Use the hour for the first prediction obs and compare that to all hours (larger diff=>smaller weight)
       hour.decay^(pmin(
         (floor(d[sum(filter)+1,which(cnames=="Time")]%%(24*60*60)/3600) #Current Hour
-        -floor(d[filter,which(cnames=="day")]%%(24*60*60)/3600))%%24 #Observation Hour
-       ,(floor(d[filter,which(cnames=="day")]%%(24*60*60)/3600) #Observation Hour
+        -floor(d[filter,which(cnames=="Time")]%%(24*60*60)/3600))%%24 #Observation Hour
+       ,(floor(d[filter,which(cnames=="Time")]%%(24*60*60)/3600) #Observation Hour
         -floor(d[sum(filter)+1,which(cnames=="Time")]%%(24*60*60)/3600))%%24 #Current Hour
       ))
     d[filter,which(cnames=="Weight")] = d[filter,which(cnames=="Weight")]/max(d[filter,which(cnames=="Weight")])
@@ -834,48 +832,61 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
         fit = gam( form[[iVar]], data=data, weights=Weight )
       }
       
+      #Fit a penalized GLM if that's what's desired:
+      if(type[[iVar]]=="GLMnet"){
+        fit = cv.glmnet( x=as.matrix(data[,ind_vars[[iVar]]]), y=as.matrix(data[,dep_var[[iVar]]]), weights=data[,"Weight"] )
+      }
+      
       #Make predictions:
       pred.d = data.frame(d[filter | pred.filter,col.inx[[iVar]]]) #covariates used for predictions
       colnames(pred.d) = cnames[col.inx[[iVar]]] #Give the covariates the correct colnames
-      preds[filter | pred.filter,iVar] = predict(fit, newdata=pred.d) #Update preds (in the correct rows) with the new predictions
-
+      if(type[[iVar]] %in% c("GLM", "nnet", "gam")){
+        preds[filter | pred.filter,iVar] = predict(fit, newdata=pred.d) #Update preds (in the correct rows) with the new predictions
+      } else {
+        #By default, this uses the optimal cv value for lambda
+        preds[filter | pred.filter,iVar] = predict(fit, newx=as.matrix(pred.d[,ind_vars[[iVar]]]))
+      }
     } #End Model Loop
         
     #Combine predictions from various models to make final prediction:
-    if(ncol(preds)>1){
-      if(is.function(combine.method)){
-        preds[pred.filter,ncol(preds)] = apply(preds[pred.filter,-ncol(preds)], 1, combine.method)
-        print(paste0("Time ",i," completed out of total time ",max(time.loop)))
-        next
-      }
-  
-      #Combine the output using a glm
-      if(combine.method=="glm"){
-        combine.fit = glm( Y ~ ., data=data.frame(preds[filter,-ncol(preds)], Y=d[filter,which(cnames==dep_var)]))
-  #      combine.fit = glm( Y ~ ., data=data.frame(preds[filter | pred.filter,-ncol(preds)], Y=d[filter | pred.filter,which(cnames==dep_var)]))
-        preds[pred.filter,ncol(preds)] = predict(combine.fit, newdata=data.frame(preds[pred.filter,]))
-      }
-  
-      #Use a neural network to choose which model to use
-      if(combine.method=="nnet"){
-        combine.fit = nnet( x=preds[filter,-ncol(preds)], y=d[filter,which(cnames==dep_var)], size=10, linout=T, maxit=10000, trace=F)
-  #      combine.fit = nnet( x=preds[filter | pred.filter,-ncol(preds)], y=d[filter | pred.filter,which(cnames==dep_var)])
-        preds[pred.filter,ncol(preds)] = predict(combine.fit, newdata=data.frame(preds[pred.filter,]))
-      }
-      
-      #Use a classification tree to choose the best model:
-      if(combine.method=="classify"){
-        err = abs(preds[filter,-ncol(preds)] - d[filter,which(cnames==dep_var)])
-        best.model = apply(err, 1, which.min)
-        rm(err)
-        X = d[,which(cnames %in% c("MicroPrice","Time","Outcry"))]
-        colnames(X) = cnames[which(cnames %in% c("MicroPrice","Time","Outcry"))]
-        #Convert time to seconds past midnight rather than seconds since start of dataset:
-        X[,"Time"] = X[,"Time"]-floor(X[,"Time"]/(24*60*60))
-        fit = rpart(as.factor(Y) ~ ., data=data.frame(X[filter,], Y=best.model) )
-        wts = predict(fit, newdata=data.frame(X[pred.filter,]))
-        preds[pred.filter,ncol(preds)] = apply(preds[pred.filter,-ncol(preds)]*wts, 1, sum)
-      }
+    #if only one prediction, use that:
+    if(ncol(preds)==2){
+      preds[pred.filter,2] = preds[pred.filter,1]
+      next
+    }
+    
+    if(is.function(combine.method)){
+      preds[pred.filter,ncol(preds)] = apply(preds[pred.filter,-ncol(preds), drop=F], 1, combine.method)
+      print(paste0("Time ",i," completed out of total time ",max(time.loop)))
+      next
+    }
+
+    #Combine the output using a glm
+    if(combine.method=="glm"){
+      combine.fit = glm( Y ~ ., data=data.frame(preds[filter,-ncol(preds)], Y=d[filter,which(cnames==dep_var)]))
+#      combine.fit = glm( Y ~ ., data=data.frame(preds[filter | pred.filter,-ncol(preds)], Y=d[filter | pred.filter,which(cnames==dep_var)]))
+      preds[pred.filter,ncol(preds)] = predict(combine.fit, newdata=data.frame(preds[pred.filter,]))
+    }
+
+    #Use a neural network to choose which model to use
+    if(combine.method=="nnet"){
+      combine.fit = nnet( x=preds[filter,-ncol(preds)], y=d[filter,which(cnames==dep_var)], size=10, linout=T, maxit=10000, trace=F)
+#      combine.fit = nnet( x=preds[filter | pred.filter,-ncol(preds)], y=d[filter | pred.filter,which(cnames==dep_var)])
+      preds[pred.filter,ncol(preds)] = predict(combine.fit, newdata=data.frame(preds[pred.filter,]))
+    }
+    
+    #Use a classification tree to choose the best model:
+    if(combine.method=="classify"){
+      err = abs(preds[filter,-ncol(preds)] - d[filter,which(cnames==dep_var)])
+      best.model = apply(err, 1, which.min)
+      rm(err)
+      X = d[,which(cnames %in% c("MicroPrice","Time","Outcry"))]
+      colnames(X) = cnames[which(cnames %in% c("MicroPrice","Time","Outcry"))]
+      #Convert time to seconds past midnight rather than seconds since start of dataset:
+      X[,"Time"] = X[,"Time"]-floor(X[,"Time"]/(24*60*60))
+      fit = rpart(as.factor(Y) ~ ., data=data.frame(X[filter,], Y=best.model) )
+      wts = predict(fit, newdata=data.frame(X[pred.filter,]))
+      preds[pred.filter,ncol(preds)] = apply(preds[pred.filter,-ncol(preds)]*wts, 1, sum)
     }
 
     print(paste0("Time ",i," completed out of total time ",max(time.loop)))
@@ -889,9 +900,9 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
     return(preds[,ncol(preds)])
   }
   results = rbind(results, c(id=ID, ifelse(dep_var=="PriceDiff1SecAhead",1,60), type=do.call("paste",type)
-                             ,ind_vars = paste(ind_vars,collapse=","), step.size=step.size, size=size, repl=repl
-                             ,params=paste0("price.decay=",price.decay,",day.decay=",day.decay,",time.decay=",time.decay,",outcry.decay=",outcry.decay,"hour.decay=",hour.decay,"repl=",repl,",min.wt=",min.wt,"combine.method=",combine.method)
-                             ,t=t, RMSE=perf[[1]], RMSE.W=perf[[2]][3,2], RMSE.R=perf[[2]][4,2], RMSE.F=perf[[2]][5,2] ) )
+     ,ind_vars = paste(ind_vars,collapse=","), step.size=step.size, size=size, repl=repl
+     ,params=paste0("price.decay=",price.decay,",day.decay=",day.decay,",time.decay=",time.decay,",outcry.decay=",outcry.decay,"hour.decay=",hour.decay,"repl=",repl,",min.wt=",min.wt,"combine.method=",combine.method)
+     ,t=t, RMSE=perf[[1]], RMSE.W=perf[[2]][3,2], RMSE.R=perf[[2]][4,2], RMSE.F=perf[[2]][5,2] ) )
   write.csv(results, "results.csv", row.names=F)
   ggsave( paste0("ID=",ID,"_time.png"), ggplot(perf[[3]], aes(x=time, y=Model.RMSE/Base.RMSE) ) + geom_point() )
   ggsave( paste0("ID=",ID,"_price.png"), ggplot(perf[[4]], aes(x=price, y=Model.RMSE/Base.RMSE) ) + geom_point() )
