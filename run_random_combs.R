@@ -10,6 +10,7 @@ while(TRUE){
   potential_vars = cnames[!cnames %in% c("MicroPrice1SecAhead", "MicroPrice60SecAhead", "PriceDiff1SecAhead", "PriceDiff60SecAhead","Weight")]
   lag_potential_vars = unique(gsub("Lag_[0-9]{1,3}_","",potential_vars[grepl("Lag",potential_vars)]))
   potential_vars = potential_vars[!grepl("Lag",potential_vars)]
+  potential_vars = potential_vars[!potential_vars %in% c("Time", "day", "Diff")]
   #Add potential_vars at random:
   for( i in potential_vars)
     if(runif(1)<choose_prob) ind_vars = c(ind_vars, i)
