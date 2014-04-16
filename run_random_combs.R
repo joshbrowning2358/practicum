@@ -25,7 +25,7 @@ while(TRUE){
   hour.decay = runif(1)
   dep_var = sample(c("PriceDiff1SecAhead","PriceDiff60SecAhead"),size=1)
   #type = sample(c("GLM","gam","nnet"))
-  type = "GLM"
+  type = sample("GLM", "GLMnet")
   
   #Just in case something got in that shouldn't have:
   ind_vars = ind_vars[ind_vars %in% cnames]
