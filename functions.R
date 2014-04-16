@@ -7,7 +7,7 @@
 library(car)
 library(Rcpp)
 library(inline)
-library(RcppArmadillo)r
+library(RcppArmadillo)
 library(reshape)
 library(plyr)
 library(ggplot2)
