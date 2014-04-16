@@ -690,6 +690,9 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
   }
 
   if(is.data.frame(d)) cnames = colnames(d)
+  needed.cols = c("Time", "MicroPrice", "Diff", "Weight", "day", "Outcry")
+  if(!all(needed.cols %in% cnames))
+    stop(paste0("Missing required column(s): ", paste(needed.cols[!(needed.cols %in% cnames)], collapse=", ") ))
   
   #Maintain compatability
   #If ind_vars is a vector, make it a list of length 1:
