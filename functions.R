@@ -678,7 +678,8 @@ sim_nnet = function(type, n, hidden, input){
 #combine.method: How should the multiple outputs be combined?  If "glm" or "nnet" (with quotes!) then a linear regression or neural network is built on the output.  If a function, that function is applied to each row of the predictions.
 weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
                           ,price.decay=1, day.decay=1, time.decay=1, outcry.decay=0.5, hour.decay=0.8, step.size=2.25*60*60
-                          ,chunk.rows=25000, type="GLM", size=10, min.wt=0, repl=5, combine.method=mean){
+                          ,chunk.rows=25000, type="GLM", size=10, min.wt=0, repl=5, combine.method=mean
+                          ,plot.fl=FALSE){
   #Check for results.csv, if it doesn't exist then create it:
   if( !any( list.files()=="results.csv") ){
     pred.1 = eval_preds(0,d,cnames,type=1)
@@ -905,8 +906,11 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
      ,params=paste0("price.decay=",price.decay,",day.decay=",day.decay,",time.decay=",time.decay,",outcry.decay=",outcry.decay,"hour.decay=",hour.decay,"repl=",repl,",min.wt=",min.wt,"combine.method=",combine.method)
      ,t=t, RMSE=perf[[1]], RMSE.W=perf[[2]][3,2], RMSE.R=perf[[2]][4,2], RMSE.F=perf[[2]][5,2] ) )
   write.csv(results, "results.csv", row.names=F)
-  ggsave( paste0("ID=",ID,"_time.png"), ggplot(perf[[3]], aes(x=time, y=Model.RMSE/Base.RMSE) ) + geom_point() )
-  ggsave( paste0("ID=",ID,"_price.png"), ggplot(perf[[4]], aes(x=price, y=Model.RMSE/Base.RMSE) ) + geom_point() )
-  
+  write.csv(results, file=paste0("results_",ID,".csv"), row.names=FALSE )
+  if(plot.fl){
+    ggsave( paste0("ID=",ID,"_time.png"), ggplot(perf[[3]], aes(x=time, y=Model.RMSE/Base.RMSE) ) + geom_point() )
+    ggsave( paste0("ID=",ID,"_price.png"), ggplot(perf[[4]], aes(x=price, y=Model.RMSE/Base.RMSE) ) + geom_point() )
+  }
+
   return(preds)
 }
