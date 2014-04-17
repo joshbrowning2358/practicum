@@ -841,7 +841,8 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
       
       #Fit a penalized GLM if that's what's desired:
       if(type[[iVar]]=="GLMnet"){
-        fit = cv.glmnet( x=as.matrix(data[,ind_vars[[iVar]]]), y=as.matrix(data[,dep_var[[iVar]]]), weights=data[,"Weight"] )
+        na.rows = is.na(apply(data, 1, sum))
+        fit = cv.glmnet( x=as.matrix(data[!na.rows,ind_vars[[iVar]]]), y=as.matrix(data[!na.rows,dep_var[[iVar]]]), weights=data[!na.rows,"Weight"] )
       }
       
       #Make predictions:
@@ -859,6 +860,7 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
     #if only one prediction, use that:
     if(ncol(preds)==2){
       preds[pred.filter,2] = preds[pred.filter,1]
+      print(paste0("Time ",i," completed out of total time ",max(time.loop)))
       next
     }
     
