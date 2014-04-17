@@ -852,7 +852,7 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
         preds[filter | pred.filter,iVar] = predict(fit, newdata=pred.d) #Update preds (in the correct rows) with the new predictions
       } else {
         #By default, this uses the optimal cv value for lambda
-        preds[filter | pred.filter,iVar] = predict(fit, newx=as.matrix(pred.d[,ind_vars[[iVar]]]))
+        preds[filter | pred.filter,iVar] = predict(fit, newx=as.matrix(pred.d[,ind_vars[[iVar]]]), s="lambda.min")
       }
     } #End Model Loop
         
