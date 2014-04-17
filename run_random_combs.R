@@ -6,7 +6,7 @@ if(Sys.info()[1] == "Linux" & Sys.info()[4] == "jb" ) cnames = as.character(read
 while(TRUE){
   ind_vars = c()
   #Set a probability for which variables will enter into the model:
-  choose_prob = sqrt(runif(1)) #sqrt to increase runif(1) closer to 1
+  choose_prob = runif(1)
   potential_vars = cnames[!cnames %in% c("MicroPrice1SecAhead", "MicroPrice60SecAhead", "PriceDiff1SecAhead", "PriceDiff60SecAhead","Weight")]
   lag_potential_vars = unique(gsub("Lag_[0-9]{1,3}_","",potential_vars[grepl("Lag",potential_vars)]))
   potential_vars = potential_vars[!grepl("Lag",potential_vars)]
