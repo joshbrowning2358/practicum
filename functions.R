@@ -18,7 +18,7 @@ library(bigmemory)
 library(sqldf)
 library(nnet)
 library(mgcv)
-library(glmnet)
+if(!grepl("^ch",Sys.info()[4])) library(glmnet)
 
 #preds should be a vector that has a length=nrow(d).  It contains prediction values for the days/times of interest.
 #d should be the big.matrix object.
