@@ -774,8 +774,8 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
     pred.filter = pred.filter & !is.na(d[,which(cnames=="MicroPrice")])
     #Update the case weights:
     d[filter,which(cnames=="Weight")] =
-      #Use the last observed MicroPriceAdj and compare that to all MicroPrices (larger diff=>smaller weight)
-      price.decay^(abs(d[filter,which(cnames=="MicroPriceAdj")][sum(filter)]-d[filter,which(cnames=="MicroPriceAdj")]))*
+      #Use the last observed MicroPrice and compare that to all MicroPrices (larger diff=>smaller weight)
+      price.decay^(abs(d[filter,which(cnames=="MicroPrice")][sum(filter)]-d[filter,which(cnames=="MicroPrice")]))*
       #Use the first time and compare that to all times (larger diff=>smaller weight)
       time.decay^(abs(i-d[filter,which(cnames=="Time")])/60/60)*
       #Use the outcry for the first prediction obs and compare that to all outcries (if diff=>smaller weight)
