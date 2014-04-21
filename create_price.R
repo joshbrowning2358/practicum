@@ -119,8 +119,8 @@ ggplot(price[sample(1:nrow(price),size=100000),], aes(x=MicroPriceAdjExp, y=Micr
 #price$Spread = price$OfferPrice1 - price$BidPrice1
 
 #Remove unneccesary columns:
-rmCols = c(#paste0("BidQuantity",1:5), paste0("BidNumberOfOrders",1:5), paste0("BidPrice",1:5)
-          #,paste0("OfferQuantity",1:5), paste0("OfferNumberOfOrders",1:5), paste0("OfferPrice",1:5),
+rmCols = c(paste0("BidQuantity",2:5), paste0("BidNumberOfOrders",1:5), paste0("BidPrice",1:5)
+          ,paste0("OfferQuantity",2:5), paste0("OfferNumberOfOrders",1:5), paste0("OfferPrice",1:5),
           paste0("BidHigh",1:5,"Cnt"), paste0("OfferLow",1:5,"Cnt"), "BidQuantityAdj", "OfferQuantityAdj")
 for(i in rmCols) price[,i] = NULL
 write.csv(price, "price_base_cols.csv", row.names=F)
@@ -130,10 +130,12 @@ price = read.csv(file="price_base_cols.csv")
 # Load data into a big matrix object
 ###############################################################################
 
-#(60+19)*7: 7 different lag groups for main vars
+#5s of lags for MicroPrice, MicroPriceAdj, MicroPriceAdjClip, LogBookImb, LogBookImbInside,
+# BidQRatio, Width, MicroPriceGeo
+#5 min of lags for Units, UnitsSELL
 #ncol(price): main columns (current variables, timestamp, etc.)
 #20: Extra columns, since you can't append more after creating (AFAIK)
-d = big.matrix( nrow=nrow(price), ncol=(60+19)*7+ncol(price)+20, backingfile="model_matrix" )
+d = big.matrix( nrow=nrow(price), ncol=8*5+2*5+ncol(price)+20, backingfile="lag5_matrix" )
 index = 1 #Specifies column of d that's being loaded
 cnames = c()
 for( i in 1:ncol(price) ){
@@ -142,43 +144,73 @@ for( i in 1:ncol(price) ){
   index = index + 1
 }
 
+# Lagged MicroPrice
+#for( lag in c(1:60,2:10*60 ) ){
+for( lag in c(1:5) ){
+  d[,index] = load_lag_price(price[,c("Time","MicroPrice")], lags=lag)
+  cnames[index] = paste0("Lag_",lag,"_MicroPrice")
+  index = index + 1
+}
+
 # Lagged MicroPrice adjusted using linear model
-for( lag in c(1:60,2:10*60 ) ){
+#for( lag in c(1:60,2:10*60 ) ){
+for( lag in c(1:5) ){
   d[,index] = load_lag_price(price[,c("Time","MicroPriceAdj")], lags=lag)
   cnames[index] = paste0("Lag_",lag,"_MicroPriceAdj")
   index = index + 1
 }
 
+# Lagged MicroPrice adjusted using linear model
+#for( lag in c(1:60,2:10*60 ) ){
+for( lag in c(1:5) ){
+  d[,index] = load_lag_price(price[,c("Time","MicroPriceAdjClip")], lags=lag)
+  cnames[index] = paste0("Lag_",lag,"_MicroPriceAdjClip")
+  index = index + 1
+}
+
 # Lagged Log( Order Book Imbalance ) for provided bids/offers
-for( lag in c(1:60,2:10*60 ) ){
+#for( lag in c(1:60,2:10*60 ) ){
+for( lag in c(1:5) ){
   d[,index] = load_lag_price(price[,c("Time","LogBookImb")], lags=lag)
   cnames[index] = paste0("Lag_",lag,"_LogBookImb")
   index = index + 1
 }
 
 # Lagged Log( Order Book Imbalance ) for just the inside bid and offer
-for( lag in c(1:60,2:10*60 ) ){
+#for( lag in c(1:60,2:10*60 ) ){
+for( lag in c(1:5) ){
   d[,index] = load_lag_price(price[,c("Time","LogBookImbInside")], lags=lag)
   cnames[index] = paste0("Lag_",lag,"_LogBookImbInside")
   index = index + 1
 }
 
 # Lagged BidQRatio
-for( lag in c(1:60,2:10*60 ) ){
+#for( lag in c(1:60,2:10*60 ) ){
+for( lag in c(1:5) ){
   d[,index] = load_lag_price(price[,c("Time","BidQRatio")], lags=lag)
   cnames[index] = paste0("Lag_",lag,"_BidQRatio")
   index = index + 1
 }
 
-# Lagged BidQRatio
-for( lag in c(1:60,2:10*60 ) ){
+# Lagged Width
+#for( lag in c(1:60,2:10*60 ) ){
+for( lag in c(1:5) ){
   d[,index] = load_lag_price(price[,c("Time","Width")], lags=lag)
   cnames[index] = paste0("Lag_",lag,"_Width")
   index = index + 1
 }
 
+#Create temp with MicroPrice columns:
+MPcols = (1:length(cnames))[sapply(cnames, grepl, pattern="MicroPrice$")]
+temp = data.frame(d[,c(which(cnames %in% c("MicroPrice1SecAhead", "day", "Diff")), MPcols)])
+colnames(temp) = c("MicroPrice1SecAhead", "day", "Diff", cnames[sapply(cnames, grepl, pattern="MicroPrice$")])
+form = paste("MicroPrice1SecAhead ~ MicroPrice +"
+  ,paste0(sapply(1:5, function(i){paste0("A^",i,"*Lag_",i,"_MicroPrice")}), collapse=" + "))
+fit = nls(form, data=temp[temp$day<=2,], start=list(A=.001), control=nls.control(tol=.00001, minFactor=10^-16, maxiter=10000))
+
 # Number of Units traded and Number of Units traded on SELL side
-for( lag in c(1:60,2:10*60 ) ){
+#for( lag in c(1:60,2:10*60 ) ){
+for( lag in c(1:5) ){
   trade_hist = load_lag_trades( price, orders, lag=lag )[,3:4]
   d[,index] = trade_hist[,1]
   d[,index+1] = trade_hist[,2]
