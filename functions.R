@@ -686,7 +686,7 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
     pred.60 = eval_preds(0,d,cnames,type=60)
     out = data.frame(id=1,forecast=1,type="pers",ind_vars=NA,step.size=NA,size=NA,repl=NA,params=NA,t=NA,RMSE=pred.1[[1]], RMSE.W=pred.1[[2]][3,2], RMSE.R=pred.1[[2]][4,2], RMSE.F=pred.1[[2]][5,2])
     out = rbind(out,data.frame(id=1,forecast=60,type="pers",ind_vars=NA,step.size=NA,size=NA,repl=NA,params=NA,t=NA,RMSE=pred.60[[1]], RMSE.W=pred.60[[2]][3,2], RMSE.R=pred.60[[2]][4,2], RMSE.F=pred.60[[2]][5,2]))
-    write.csv(file="results.csv", out)
+    write.csv(file="results.csv", out, row.names=F)
   }
 
   if(is.data.frame(d)) cnames = colnames(d)
