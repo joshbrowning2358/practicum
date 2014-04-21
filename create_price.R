@@ -207,10 +207,15 @@ colnames(temp) = c("MicroPrice1SecAhead", "day", "Diff", cnames[sapply(cnames, g
 form = paste("MicroPrice1SecAhead ~ MicroPrice +"
   ,paste0(sapply(1:5, function(i){paste0("A^",i,"*Lag_",i,"_MicroPrice")}), collapse=" + "))
 fit = nls(form, data=temp[temp$day<=2,], start=list(A=.001), control=nls.control(tol=.00001, minFactor=10^-16, maxiter=10000))
+for( lag in c(1:5) ){
+#  d[,index] = ...
+  cnames = c(cnames, paste0("Lag_",lag,"_MicroPriceGeo"))
+  index = index + 1
+}
 
 # Number of Units traded and Number of Units traded on SELL side
 #for( lag in c(1:60,2:10*60 ) ){
-for( lag in c(1:5) ){
+for( lag in c(1:5*60) ){
   trade_hist = load_lag_trades( price, orders, lag=lag )[,3:4]
   d[,index] = trade_hist[,1]
   d[,index+1] = trade_hist[,2]
