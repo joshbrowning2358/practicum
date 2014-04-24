@@ -1,9 +1,3 @@
-#library(randomForest)
-#library(rpart)
-#library(gbm)
-#library(AMORE)
-#library(glmnet)
-#library(pls)
 library(car)
 library(Rcpp)
 library(inline)
@@ -12,13 +6,18 @@ library(reshape)
 library(plyr)
 library(ggplot2)
 library(scales)
-#library(neuralnet)
-library(biglm)
 library(bigmemory)
-library(sqldf)
 library(nnet)
 library(mgcv)
-if(!grepl("^ch",Sys.info()[4])) library(glmnet)
+require(biglm)
+require(sqldf)
+require(glmnet)
+require(randomForest)
+require(rpart)
+require(gbm)
+#library(AMORE)
+#library(pls)
+#library(neuralnet)
 
 #preds should be a vector that has a length=nrow(d).  It contains prediction values for the days/times of interest.
 #d should be the big.matrix object.
@@ -58,8 +57,16 @@ eval_preds = function( preds, d, cnames, type, full=F ){
                  ,Model.RMSE = sqrt(mean(df$err^2,na.rm=T)) )
     } )
     
+    #Aggregate performance over predicted value:
+    d.eval$preds = floor( d.eval$err + d.eval$price_diff )
+    d.agg.r = ddply( d.eval, "preds", function(df){
+      data.frame(Base.RMSE=sqrt(mean(df$price_diff^2,na.rm=T))
+                 ,Model.RMSE = sqrt(mean(df$err^2,na.rm=T)) )
+    } )
+
+    
     #return performance aggregated by time and by current price
-    return( list( d.agg.tot, d.agg.day, d.agg.t, d.agg.p ) )
+    return( list( d.agg.tot, d.agg.day, d.agg.t, d.agg.p, d.agg.r ) )
   }
   
   return(list(d.agg.tot,d.agg.day))
@@ -101,22 +108,23 @@ eval_print = function( preds, price_diff=d[,5], price=d[,2], time=d[,1] ){
 #- Include option to run nnet with multiple starting weights and chose best one
 #- Train nnet until it forecasts well on test set.  Probably not possible with nnet...
 
-#NOTE: cnames should be in memory before running this function!!!
-#d: big.matrix object
-#ind_vars: names of variables to be used in the model
+#NOTE: cnames should be in memory before running this function with a bigmatrix object!!!
+#d: big.matrix object or data.frame (although data.frame arguments haven't been tested as extensively).
+#ind_vars: names of variables to be used in the model (as a character string).  If multiple models are to be fit, this should be a list where each element is a character string.
 #dep_var: Either "PriceDiff1SecAhead" or "PriceDiff60SecAhead"
-#price_decay: How the case weights should decrease as a function of price level?  If the current price is $94, then observations at $95 and $93 will have weight 1*price.decay.
+#price_decay: How the case weights should decrease as a function of price level.  If the current price is $94, then observations at $95 and $93 will have weight 1*price.decay.
 #day.decay: How should the case weights decrease as a function of day?  For k days in the past, case weights are decayed by (day.decay)^k
 #time.decay: How should the case weights decrease as a function of time?  For k seconds in the past, case weights are decayed by (time.decay)^k
 #outcry.decay: How should the case weights decrease as a function of outcry period?  If the observation is the same as the current outcry, don't decay, otherwise multiply by this factor.
 #hour.decay: How should the case weights decrease as a function of time of day?  
 #step.size: How frequently should models be built (in seconds)?  Smaller values should be more accurate but take longer to fit.
 #chunk.rows: Controls how many rows are read at one time for the bigglm algorithm.
-#type: Should be either "GLM", "nnet", or "gam".  Either a linear regression, neural network, or GAM model is then used.
+#type: Should be either "GLM", "nnet", "gam", or "glmnet".  Either a linear regression, neural network, GAM, or penalized glm model is then used.  If fitting multiple models, this can be a list where each element is the string corresponding to the type for the ith model.
 #size: How many hidden nodes to fit with nnet?  Ignored for type!="nnet"
 #min.wt: What obs should be ignored?  Ignored if their weight is less than max(Weight)*min.wt
 #repl: How many neural networks (with randomized weights) should be fit?  The network with best fit on training data is kept.  Ignored for type!="nnet"
 #combine.method: How should the multiple outputs be combined?  If "glm" or "nnet" (with quotes!) then a linear regression or neural network is built on the output.  If a function, that function is applied to each row of the predictions.
+#plot.fl: If set to true, two plots are output that show the performance of the model (relative to persistence) over time and over price level.
 weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
                           ,price.decay=1, day.decay=1, time.decay=1, outcry.decay=0.5, hour.decay=0.8, step.size=2.25*60*60
                           ,chunk.rows=25000, type="GLM", size=10, min.wt=0, repl=5, combine.method=mean
@@ -358,6 +366,7 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
   if(plot.fl){
     ggsave( paste0("ID=",ID,"_time.png"), ggplot(perf[[3]], aes(x=time, y=Model.RMSE/Base.RMSE) ) + geom_point() )
     ggsave( paste0("ID=",ID,"_price.png"), ggplot(perf[[4]], aes(x=price, y=Model.RMSE/Base.RMSE) ) + geom_point() )
+    ggsave( paste0("ID=",ID,"_preds.png"), ggplot(perf[[5]], aes(x=preds/1000, y=Model.RMSE/Base.RMSE) ) + geom_point() + labs(x="Predicted Change") + geom_hline(xintercept=1,color="red",linetype=2) )
   }
 
   return(preds)
