@@ -325,6 +325,57 @@ if( Sys.info()[1]!="Windows"){
                                     "
   )
   
+  # prices has 1 column: time
+  # orders has 4 columns: time, 0=BUY/1=SELL, price, units
+  # output has 5 columns: width of time period (should be ~Lag), # of trades in last Lag seconds, # of SELL trades, # of units traded, # of SELL units
+  # Variable i keeps track of row of price
+  # Variable iLag keeps track of (Lag seconds back) row of orders
+  # Variable iCurr keeps track of first row of orders that has a time greater than price(i,0)
+  load_lag_trades_cxx_new = cxxfunction(signature(prices="numeric", orders="numeric", lags="numeric"), plugin="RcppArmadillo", body="
+    arma::mat price = Rcpp::as<arma::mat>(prices);
+    arma::mat order = Rcpp::as<arma::mat>(orders);
+    int n = price.n_rows;
+    int m = order.n_rows;
+    double lag = Rcpp::as<double>(lags);
+    arma::mat output(n,4);
+    int iLag(0), iCurr(0);
+  
+    //initialize output with zeros in the first row:
+    for( int j=1; j<5; j++)
+    {
+      output(1,j) = 0;
+    }
+
+    for( int i=1; i<n; i++){
+      //initialize the ith row with the previous row
+      output(i,1) = output(i-1,1)
+      output(i,2) = output(i-1,2)
+      output(i,3) = output(i-1,3)
+      output(i,4) = output(i-1,4)
+      while( price(i,0) > order(iLag,0) + lag && iLag < m-1)
+      {
+        iLag++; //iterate iLag until it's within Lag seconds of price's time
+        //As iLag is increased, update output to reflect changes (remove values of orders before iLag)
+        output(i,1) = output(i,1) - order(iLag-1,1);
+        output(i,2) = output(i,2) - order(iLag-1,1)*order(iLag-1,1);
+        output(i,3) = output(i,3) - order(iLag-1,3);
+        output(i,4) = output(i,4) - order(iLag-1,3)*order(iLag-1,1);
+      }
+      while( price(i,0) >= order(iCurr,0)  && iCurr < m-1 )
+      {
+        iCurr++; //iterate iCurr until it's ahead of current price time
+        //As iCurr increases, add on new values to output
+        output(i,1) = output(i,1) + order(iCurr,1);
+        output(i,2) = output(i,2) + order(iCurr,1)*order(iCurr,1);
+        output(i,3) = output(i,3) + order(iCurr,3);
+        output(i,4) = output(i,4) + order(iCurr,3)*order(iCurr,1);
+      }
+      output(i,0) = iCurr - iLag;
+    }
+    return(wrap(output));
+    "
+  )
+  
   load_lag_trades = function( price, orders, lag=60 ){
     price_mat = as.matrix( price$Time )
     orders_agg = ddply( orders, c("Time", "RestingSide", "TradePrice"), function(df)sum(df$TradeQuantity) )
