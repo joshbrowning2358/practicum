@@ -25,10 +25,12 @@ require(gbm)
 #type should be 1 or 60 depending on the type of model: 1-second or 60-second forecasting
 #full: Returns a list of performance by time and performance by price level if T.
 eval_preds = function( preds, d, cnames, type, full=F ){
+  #Check for NAs.  If NAs exist, overwrite them with 0's (i.e. predict persistence, or a change in price of 0).
   if( any(is.na(preds)) ){
     warning(paste0("No NAs allowed in predictions!  ",sum(is.na(preds))," NA's replaced with MicroPrice at that time."))
     preds[is.na(preds)] = d[is.na(preds),which(cnames=="MicroPrice")]
   }
+  #Identify which rows need to be analyzed, pull in true values to model against
   eval.rows = d[,which(cnames=="Diff")]==1
   if(type==1) price_diff = d[,which(cnames=="PriceDiff1SecAhead")]
   if(type==60) price_diff = d[,which(cnames=="PriceDiff60SecAhead")]
@@ -36,10 +38,13 @@ eval_preds = function( preds, d, cnames, type, full=F ){
   time = d[,which(cnames=="Time")]
   price = d[,which(cnames=="MicroPrice")]
   day = d[,which(cnames=="day")]
+  #Create a dataframe with all the relevant variables
   d.eval = data.frame( err=preds-price_diff, time, price, price_diff, day )
   d.eval = d.eval[eval.rows,]
   
+  #Aggregate the Wed/Thurs results
   d.agg.tot = sqrt(mean(d.eval$err[d.eval$day %in% c(3,4)]^2, na.rm=T))
+  #Aggregate the results by day
   d.agg.day = ddply(d.eval, "day", function(df){sqrt(mean(df$err^2, na.rm=T))})
   
   if(full){
@@ -63,50 +68,13 @@ eval_preds = function( preds, d, cnames, type, full=F ){
       data.frame(Base.RMSE=sqrt(mean(df$price_diff^2,na.rm=T))
                  ,Model.RMSE = sqrt(mean(df$err^2,na.rm=T)) )
     } )
-
     
-    #return performance aggregated by time and by current price
+    #return performance aggregated by time, current price, and predicted value
     return( list( d.agg.tot, d.agg.day, d.agg.t, d.agg.p, d.agg.r ) )
   }
   
   return(list(d.agg.tot,d.agg.day))
 }
-
-eval_print = function( preds, price_diff=d[,5], price=d[,2], time=d[,1] ){
-  if( any(is.na(preds)) ){
-    warning(paste0("No NAs allowed in predictions!  ",sum(is.na(preds))," NA's replaced with MicroPrice at that time."))
-    preds[is.na(preds)] = price[is.na(preds)]
-  }
-  eval.rows = c(0,diff( price ))!=0
-  eval.rows[is.na(eval.rows)] = FALSE
-  d.eval = data.frame( err=preds-price_diff, time, price, price_diff )
-  d.eval = d.eval[eval.rows,]
-  d.eval$day = ifelse( d.eval$time < 24*60*60, "Monday"
-                       ,ifelse( d.eval$time < 48*60*60, "Tuesday"
-                                ,ifelse( d.eval$time < 72*60*60, "Wednesday"
-                                         ,ifelse( d.eval$time < 96*60*60, "Thursday"
-                                                  ,ifelse( d.eval$time < 120*60*60, "Friday", "Error" ) ) ) ) )
-  if( any(d.eval$day %in% c("Error")) ) stop("Bad times: Out of range")
-  d.eval$day = factor(d.eval$day, levels=c("Monday","Tuesday","Wednesday","Thursday","Friday"))
-  out = ddply( d.eval, "day", function(x){
-    d = data.frame(MSE.Model=sum(x$err^2)/nrow(x), MSE.Pers=sum(x$price_diff^2)/nrow(x))
-    d$Ratio = d[,1]/d[,2]
-    return(d)
-  } )
-  d.eval$day = ifelse(d.eval$day %in% c("Wednesday","Thursday"), "Wed-Thu", "Mon-Tue")
-  out = rbind( out, ddply( d.eval, "day", function(x){
-    d = data.frame(MSE.Model=sum(x$err^2)/nrow(x), MSE.Pers=sum(x$price_diff^2)/nrow(x))
-    d$Ratio = d[,1]/d[,2]
-    return(d)
-  } ) )
-  out[,2:4] = round(out[,2:4],4)
-  print(out)
-}
-
-#Potential Improvements:
-#- Change time delay to be based on time of day instead of decaying back indefinitely
-#- Include option to run nnet with multiple starting weights and chose best one
-#- Train nnet until it forecasts well on test set.  Probably not possible with nnet...
 
 #NOTE: cnames should be in memory before running this function with a bigmatrix object!!!
 #d: big.matrix object or data.frame (although data.frame arguments haven't been tested as extensively).
@@ -129,7 +97,7 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
                           ,price.decay=1, day.decay=1, time.decay=1, outcry.decay=0.5, hour.decay=0.8, step.size=2.25*60*60
                           ,chunk.rows=25000, type="GLM", size=10, min.wt=0, repl=5, combine.method=mean
                           ,plot.fl=FALSE){
-  #Check for results.csv, if it doesn't exist then create it:
+  #Check for results.csv (for output), if it doesn't exist then create it:
   if( !any( list.files()=="results.csv") ){
     pred.1 = eval_preds(0,d,cnames,type=1)
     pred.60 = eval_preds(0,d,cnames,type=60)
@@ -138,12 +106,13 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
     write.csv(file="results.csv", out, row.names=F)
   }
 
+  #Check that the basic columns are present:
   if(is.data.frame(d)) cnames = colnames(d)
   needed.cols = c("Time", "MicroPrice", "Diff", "Weight", "day", "Outcry")
   if(!all(needed.cols %in% cnames))
     stop(paste0("Missing required column(s): ", paste(needed.cols[!(needed.cols %in% cnames)], collapse=", ") ))
   
-  #Maintain compatability
+  #Maintain compatability: convert arguments of length 1 into lists, if applicable
   #If ind_vars is a vector, make it a list of length 1:
   if(is.character(ind_vars)){ ind_vars = list(ind_vars) }
   #If type is a character, make it a list  
@@ -158,10 +127,11 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
   results = read.csv(file="results.csv", stringsAsFactors=F)
   ID = max(results$id)+1
   
-  #Put in a safety net to help keep R from crashing.
+  #If not all variables are in cnames, then quit now instead of running and then erroring out.
   if( !all(do.call("c",ind_vars) %in% cnames) ){
     stop("Not all variables in ind_vars are in cnames")
   }
+  #glmnet needs at least two independent variables, so if there's only one revert to GLM:
   for(i in 1:length(ind_vars) ){
     if(type[[i]]=="GLMnet" & length(ind_vars[[i]])==1){
       warning("GLMnet cannot run with one predictor, reverting to GLM")
@@ -183,30 +153,30 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
   preds = matrix(0,nrow=nrow(d),ncol=length(ind_vars)+1)
   colnames(preds) = c(paste0("Model",1:length(ind_vars)),"Final")
   
-  #NOT CURRENTLY USED!  GLM models are fit using glm and not bigglm.
+  #NOT CURRENTLY USED!  biglm model implementation is necessary when using alot of independent variables, but will be slower.  So, we're using glm.
   #Define function to read data. This is needed for the bigglm model. This function should return NULL when passed TRUE (and
   #reset the point we're reading from) and should return the next chunk of data when passed FALSE.
-  read.d = function(reset){
-    if(reset){
-      skip.rows<<-0 #Use <<- to assign to global environment
-      return(NULL)
-    }
-    row.inx = (skip.rows+1):min(skip.rows+chunk.rows,nrow(d))
-    #filter controls which rows are useable for the current model:
-    while( sum(filter[row.inx])==0 & skip.rows < nrow(d)-1 ){
-      skip.rows <<- skip.rows + chunk.rows
-      row.inx = (skip.rows+1):min(skip.rows+chunk.rows,nrow(d))
-    }
-    if(skip.rows>=nrow(d)-1) return(NULL)
-    out = data.frame( d[row.inx,col.inx] )
-    #Filter out NA rows:
-    out = out[apply(out,1,function(x){sum(is.na(x))})==0,]
-    colnames(out) = cnames[col.inx]
-    skip.rows <<- skip.rows + chunk.rows
-    #Stop processing once filter becomes F (i.e. reached end of training set)
-    if(any(!filter[row.inx])) skip.rows<<-nrow(d)
-    return(out[filter[row.inx],])
-  }
+#  read.d = function(reset){
+#    if(reset){
+#      skip.rows<<-0 #Use <<- to assign to global environment
+#      return(NULL)
+#    }
+#    row.inx = (skip.rows+1):min(skip.rows+chunk.rows,nrow(d))
+#    #filter controls which rows are useable for the current model:
+#    while( sum(filter[row.inx])==0 & skip.rows < nrow(d)-1 ){
+#      skip.rows <<- skip.rows + chunk.rows
+#      row.inx = (skip.rows+1):min(skip.rows+chunk.rows,nrow(d))
+#    }
+#    if(skip.rows>=nrow(d)-1) return(NULL)
+#    out = data.frame( d[row.inx,col.inx] )
+#    #Filter out NA rows:
+#    out = out[apply(out,1,function(x){sum(is.na(x))})==0,]
+#    colnames(out) = cnames[col.inx]
+#    skip.rows <<- skip.rows + chunk.rows
+#    #Stop processing once filter becomes F (i.e. reached end of training set)
+#    if(any(!filter[row.inx])) skip.rows<<-nrow(d)
+#    return(out[filter[row.inx],])
+#  }
   
   #Create the model formula, initialize the time.loop:
   form = lapply(ind_vars,function(x){
@@ -219,9 +189,11 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
   #Build the model for each time chunk:
   for( i in time.loop ){
     
-    filter = d[,which(cnames=="Time")]<=(i-60) #Only use rows which are more than 60 seconds before the first prediction
-    pred.filter = d[,which(cnames=="Time")]>i & d[,which(cnames=="Time")]<=i+step.size #Define which rows you'll be predicting
-    #If MicroPrice is NA on some row, don't predict for that row (this code generates a warning without this)
+    #Only use rows which are more than 60 seconds before the first prediction (ensures you don't use data you're not supposed to have)
+    filter = d[,which(cnames=="Time")]<=(i-60)
+    #Define which rows you'll be predicting
+    pred.filter = d[,which(cnames=="Time")]>i & d[,which(cnames=="Time")]<=i+step.size
+    #If MicroPrice is NA on some row, don't predict for that row (this code generates a warning without this).  Only one row has NA, and it's on Friday
     pred.filter = pred.filter & !is.na(d[,which(cnames=="MicroPrice")])
     #Update the case weights:
     d[filter,which(cnames=="Weight")] =
@@ -245,10 +217,11 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
     #Clear out all the other weights, just in case:
     d[!filter,which(cnames=="Weight")] = 0
     
-    #Fit a GLM if that's what's desired:
+    #Fit a GLM if that's what's desired, using bigglm
+    #NOT USED!  We now use glm for speed and convenience (since we aren't using a ton of independent variables)
     #if(type=="GLM") fit = bigglm( form, read.d, weights=Weight~1 )
     
-    #Create each of the different models
+    #Loop through all of the different models specified (could just be one).  iVar is the iterator for the model number
     for( iVar in 1:length(ind_vars) ){
       #Set up model dataframe
       cols = which(cnames %in% c(dep_var,ind_vars[[iVar]]))
@@ -315,6 +288,7 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
       next
     }
     
+    #If a function is supplied, use that function to combine the predictions (usually mean)
     if(is.function(combine.method)){
       preds[pred.filter,ncol(preds)] = apply(preds[pred.filter,-ncol(preds), drop=F], 1, combine.method)
       print(paste0("Time ",i," completed out of total time ",max(time.loop)))
@@ -324,14 +298,12 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
     #Combine the output using a glm
     if(combine.method=="glm"){
       combine.fit = glm( Y ~ ., data=data.frame(preds[filter,-ncol(preds)], Y=d[filter,which(cnames==dep_var)]))
-#      combine.fit = glm( Y ~ ., data=data.frame(preds[filter | pred.filter,-ncol(preds)], Y=d[filter | pred.filter,which(cnames==dep_var)]))
       preds[pred.filter,ncol(preds)] = predict(combine.fit, newdata=data.frame(preds[pred.filter,]))
     }
 
     #Use a neural network to choose which model to use
     if(combine.method=="nnet"){
       combine.fit = nnet( x=preds[filter,-ncol(preds)], y=d[filter,which(cnames==dep_var)], size=10, linout=T, maxit=10000, trace=F)
-#      combine.fit = nnet( x=preds[filter | pred.filter,-ncol(preds)], y=d[filter | pred.filter,which(cnames==dep_var)])
       preds[pred.filter,ncol(preds)] = predict(combine.fit, newdata=data.frame(preds[pred.filter,]))
     }
     
@@ -352,6 +324,7 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
     print(paste0("Time ",i," completed out of total time ",max(time.loop)))
   } #End Time Loop
   
+  #Analyze model performance
   t = as.numeric(difftime(Sys.time(), Start, units="mins"))
   if( dep_var %in% c("PriceDiff1SecAhead", "PriceDiff60SecAhead") ){
     if(dep_var=="PriceDiff1SecAhead") perf=eval_preds(preds[,ncol(preds)], d, cnames, 1, full=T)
@@ -359,12 +332,16 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
   } else {
     return(preds[,ncol(preds)])
   }
+  #Add the relevant results of this run to the results data.frame
   results = rbind(results, c(id=ID, ifelse(dep_var=="PriceDiff1SecAhead",1,60), type=do.call("paste",type)
      ,ind_vars = paste(ind_vars,collapse=","), step.size=step.size, size=paste(size,collapse=","), repl=repl
      ,params=paste0("price.decay=",price.decay,",day.decay=",day.decay,",time.decay=",time.decay,",outcry.decay=",outcry.decay,"hour.decay=",hour.decay,"repl=",repl,",min.wt=",min.wt,"combine.method=",combine.method)
      ,t=t, RMSE=perf[[1]], RMSE.W=perf[[2]][3,2], RMSE.R=perf[[2]][4,2], RMSE.F=perf[[2]][5,2] ) )
+  #Write out the relevant results of this run to the results.csv file
   write.csv(results, "results.csv", row.names=F)
+  #Write out the relevant results to another file (in case results.csv gets overwritten/corrupted)
   write.csv(results, file=paste0("results_",ID,".csv"), row.names=FALSE )
+  #Create some plots of performance, if plot.fl=TRUE
   if(plot.fl){
     ggsave( paste0("ID=",ID,"_time.png"), ggplot(perf[[3]], aes(x=time, y=Model.RMSE/Base.RMSE) ) + geom_point() )
     ggsave( paste0("ID=",ID,"_price.png"), ggplot(perf[[4]], aes(x=price, y=Model.RMSE/Base.RMSE) ) + geom_point() )
