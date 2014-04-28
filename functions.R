@@ -120,7 +120,7 @@ eval_print = function( preds, price_diff=d[,5], price=d[,2], time=d[,1] ){
 #step.size: How frequently should models be built (in seconds)?  Smaller values should be more accurate but take longer to fit.
 #chunk.rows: Controls how many rows are read at one time for the bigglm algorithm.
 #type: Should be either "GLM", "nnet", "gam", or "glmnet".  Either a linear regression, neural network, GAM, or penalized glm model is then used.  If fitting multiple models, this can be a list where each element is the string corresponding to the type for the ith model.
-#size: How many hidden nodes to fit with nnet?  Ignored for type!="nnet"
+#size: How many hidden nodes to fit with nnet?  Ignored for type!="nnet".  If multiple models are to be fit, this should be a list where each element is a numeric.
 #min.wt: What obs should be ignored?  Ignored if their weight is less than max(Weight)*min.wt
 #repl: How many neural networks (with randomized weights) should be fit?  The network with best fit on training data is kept.  Ignored for type!="nnet"
 #combine.method: How should the multiple outputs be combined?  If "glm" or "nnet" (with quotes!) then a linear regression or neural network is built on the output.  If a function, that function is applied to each row of the predictions.
@@ -146,8 +146,10 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
   #Maintain compatability
   #If ind_vars is a vector, make it a list of length 1:
   if(is.character(ind_vars)){ ind_vars = list(ind_vars) }
-  #If type is a vector, make it a list  
+  #If type is a character, make it a list  
   if(length(type)==1){ type=as.list(rep(type,length(ind_vars)))}
+  #If size is a numeric, make
+  if(length(size)==1){ size=as.list(rep(size,length(ind_vars)))}
   #No combine.method required if only running one model:
   if(length(ind_vars)==1) combine.method=""
   
@@ -260,11 +262,11 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
       
       #Fit a neural network if that's what's desired. Note: the necessary data matrix is brought into RAM in this case. Be careful!
       if(type[[iVar]]=="nnet"){
-        bestfit = nnet( form[[iVar]], weights=Weight, data=data, linout=TRUE, maxit=100000, size=size, trace=F )
+        bestfit = nnet( form[[iVar]], weights=Weight, data=data, linout=TRUE, maxit=100000, size=size[[iVar]], trace=F )
         j = 1
         #Run nnet with several different initial weights if repl>1:
         while(j < repl){
-          fit = nnet( form[[iVar]], weights=Weight, data=data, linout=TRUE, maxit=100000, size=size, trace=F )
+          fit = nnet( form[[iVar]], weights=Weight, data=data, linout=TRUE, maxit=100000, size=size[[iVar]], trace=F )
           if(fit$value<bestfit$value) bestfit=fit
           j = j+1
         }
@@ -358,7 +360,7 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
     return(preds[,ncol(preds)])
   }
   results = rbind(results, c(id=ID, ifelse(dep_var=="PriceDiff1SecAhead",1,60), type=do.call("paste",type)
-     ,ind_vars = paste(ind_vars,collapse=","), step.size=step.size, size=size, repl=repl
+     ,ind_vars = paste(ind_vars,collapse=","), step.size=step.size, size=paste(size,collapse=","), repl=repl
      ,params=paste0("price.decay=",price.decay,",day.decay=",day.decay,",time.decay=",time.decay,",outcry.decay=",outcry.decay,"hour.decay=",hour.decay,"repl=",repl,",min.wt=",min.wt,"combine.method=",combine.method)
      ,t=t, RMSE=perf[[1]], RMSE.W=perf[[2]][3,2], RMSE.R=perf[[2]][4,2], RMSE.F=perf[[2]][5,2] ) )
   write.csv(results, "results.csv", row.names=F)
