@@ -348,10 +348,10 @@ if( Sys.info()[1]!="Windows"){
 
     for( int i=1; i<n; i++){
       //initialize the ith row with the previous row
-      output(i,1) = output(i-1,1)
-      output(i,2) = output(i-1,2)
-      output(i,3) = output(i-1,3)
-      output(i,4) = output(i-1,4)
+      output(i,1) = output(i-1,1);
+      output(i,2) = output(i-1,2);
+      output(i,3) = output(i-1,3);
+      output(i,4) = output(i-1,4);
       while( price(i,0) > order(iLag,0) + lag && iLag < m-1)
       {
         iLag++; //iterate iLag until it's within Lag seconds of price's time
