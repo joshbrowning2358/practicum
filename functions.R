@@ -63,7 +63,7 @@ eval_preds = function( preds, d, cnames, type, full=F ){
     } )
     
     #Aggregate performance over predicted value:
-    d.eval$preds = floor( d.eval$err + d.eval$price_diff )
+    d.eval$preds = floor( (d.eval$err + d.eval$price_diff)*10 )/10
     d.agg.r = ddply( d.eval, "preds", function(df){
       data.frame(Base.RMSE=sqrt(mean(df$price_diff^2,na.rm=T))
                  ,Model.RMSE = sqrt(mean(df$err^2,na.rm=T)) )
@@ -335,7 +335,7 @@ weighted_model = function(d, ind_vars, dep_var="PriceDiff1SecAhead"
   #Add the relevant results of this run to the results data.frame
   results = rbind(results, c(id=ID, ifelse(dep_var=="PriceDiff1SecAhead",1,60), type=do.call("paste",type)
      ,ind_vars = paste(ind_vars,collapse=","), step.size=step.size, size=paste(size,collapse=","), repl=repl
-     ,params=paste0("price.decay=",price.decay,",day.decay=",day.decay,",time.decay=",time.decay,",outcry.decay=",outcry.decay,"hour.decay=",hour.decay,"repl=",repl,",min.wt=",min.wt,"combine.method=",as.character(combine.method))
+     ,params=paste0("price.decay=",price.decay,",day.decay=",day.decay,",time.decay=",time.decay,",outcry.decay=",outcry.decay,"hour.decay=",hour.decay,"repl=",repl,",min.wt=",min.wt,"combine.method=",as.character(quote(combine.method)))
      ,t=t, RMSE=perf[[1]], RMSE.W=perf[[2]][3,2], RMSE.R=perf[[2]][4,2], RMSE.F=perf[[2]][5,2] ) )
   #Write out the relevant results of this run to the results.csv file
   write.csv(results, "results.csv", row.names=F)
